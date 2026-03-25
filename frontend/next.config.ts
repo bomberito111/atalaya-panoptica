@@ -9,8 +9,9 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
-  // Base path si el repo no está en la raíz (ajustar al nombre del repo)
-  // basePath: "/atalaya-panoptica",
+  // Base path para GitHub Pages (repo no está en la raíz)
+  basePath: "/atalaya-panoptica",
+  assetPrefix: "/atalaya-panoptica",
 };
 
 export default nextConfig;
