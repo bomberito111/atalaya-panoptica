@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
+import InfoModal from "@/components/InfoModal";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -37,9 +38,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col bg-gray-950 text-gray-100">
         <nav className="border-b border-gray-800 bg-gray-900/80 backdrop-blur-sm sticky top-0 z-50">
           <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-            <Link href="/" className="text-blue-400 text-xl font-bold font-mono tracking-tight">
-              ATALAYA <span className="text-gray-500 text-sm font-normal">PANÓPTICA</span>
-            </Link>
+            <InfoModal />
             <div className="flex gap-1 sm:gap-3">
               {NAV_LINKS.map((link) => (
                 <Link
