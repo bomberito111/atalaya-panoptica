@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getPromesas, type Promesa } from "@/lib/supabase";
+import { getPromises, type Promesa } from "@/lib/supabase";
 
 const VERDICT_CONFIG = {
   cumplida: { label: "Cumplida", color: "text-green-400", bg: "bg-green-900/30 border-green-800", icon: "✅" },
@@ -70,7 +70,7 @@ export default function MuroRealidadPage() {
   const [filterVerdict, setFilterVerdict] = useState<string>("all");
 
   useEffect(() => {
-    getPromesas().then((p) => {
+    getPromises().then((p) => {
       setPromesas(p);
       setLoading(false);
     });
