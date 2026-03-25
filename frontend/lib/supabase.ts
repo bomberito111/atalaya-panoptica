@@ -69,7 +69,7 @@ export interface ViralContent {
   created_at: string;
 }
 
-export interface Promise {
+export interface Promesa {
   id: string;
   politician_id: string;
   promise_text: string;
@@ -129,7 +129,7 @@ export async function getManipulationAlerts(): Promise<ManipulationAlert[]> {
   return data || [];
 }
 
-export async function getPromises(): Promise<Promise[]> {
+export async function getPromises(): Promise<Promesa[]> {
   const { data, error } = await supabase
     .from("promises_vs_reality")
     .select("*")
