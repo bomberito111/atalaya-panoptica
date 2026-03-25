@@ -22,10 +22,10 @@ export const metadata: Metadata = {
 };
 
 const NAV_LINKS = [
-  { href: "/", label: "Dashboard" },
-  { href: "/grafo/", label: "🕸️ Grafo" },
-  { href: "/muro-realidad/", label: "⚖️ Muro" },
-  { href: "/radar/", label: "📡 Radar" },
+  { href: "/", label: "Inicio" },
+  { href: "/grafo/", label: "🕸️ Grafo de Poder" },
+  { href: "/muro-realidad/", label: "⚖️ Promesas vs Realidad" },
+  { href: "/radar/", label: "📡 Radar de Bots" },
 ];
 
 export default function RootLayout({
