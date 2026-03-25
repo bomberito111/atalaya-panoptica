@@ -49,7 +49,7 @@ function AlertCard({ alert }: { alert: ManipulationAlert }) {
         <p className="text-white text-sm">{alert.narrative}</p>
       </div>
 
-      {evidence.patrones_detectados && Array.isArray(evidence.patrones_detectados) && (
+      {Boolean(evidence.patrones_detectados) && Array.isArray(evidence.patrones_detectados) && (
         <div>
           <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Patrones</p>
           <div className="flex flex-wrap gap-1">
@@ -62,7 +62,7 @@ function AlertCard({ alert }: { alert: ManipulationAlert }) {
         </div>
       )}
 
-      {officialData.dato_correcto && (
+      {Boolean(officialData.dato_correcto) && (
         <div>
           <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Dato oficial</p>
           <p className="text-gray-300 text-sm">{officialData.dato_correcto as string}</p>
