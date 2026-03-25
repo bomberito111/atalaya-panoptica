@@ -60,7 +60,10 @@ jobs:
         run: |
           echo "=== Medios de Prensa (RSS) ==="
           python -m scripts.rastreador.fuentes_web.medios_prensa || true
+          echo "=== Búsqueda Web (DuckDuckGo + Reddit Chile) ==="
+                              python -m scripts.rastreador.fuentes_web.busqueda_web || true
 
+                    
           echo "=== Twitter/X via Nitter ==="
           python -m scripts.rastreador.fuentes_web.twitter_x || true
 
