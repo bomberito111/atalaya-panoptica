@@ -1,0 +1,42 @@
+name: 🕵️ El Detective (Consumidor IA)
+
+on:
+  schedule:
+    # Ejecutar cada 5 minutos
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  analizar:
+    name: Procesar cola con IA
+    runs-on: ubuntu-latest
+    timeout-minutes: 8  # Cada run debe terminar antes del siguiente ciclo de 5min
+
+    steps:
+      - name: Checkout repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: Ejecutar El Detective
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GROQ_MODEL: ${{ vars.GROQ_MODEL || 'llama-3.3-70b-versatile' }}
+          MAX_ITEMS_PER_RUN: ${{ vars.MAX_ITEMS_PER_RUN || '3' }}
+          CONFIDENCE_THRESHOLD_ANOMALY: ${{ vars.CONFIDENCE_THRESHOLD_ANOMALY || '0.60' }}
+          LOG_LEVEL: INFO
+        run: python -m scripts.detective.main
+
+      - name: Notificar si hay nuevas anomalías críticas
+        if: success()
+        run: |
+          echo "✅ Detective completado a las $(date)"

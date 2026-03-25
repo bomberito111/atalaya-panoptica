@@ -1,0 +1,23 @@
+# ATALAYA PANÓPTICA — Dependencias Python
+# Instalar: pip install -r requirements.txt
+# Python >= 3.11 recomendado
+
+# --- Base de datos ---
+supabase==2.28.3          # Cliente oficial Supabase Python
+
+# --- IA (Groq) ---
+groq==0.12.0              # SDK oficial de Groq (compatible con OpenAI API)
+
+# --- HTTP y Scraping ---
+httpx==0.28.1             # HTTP client async (reemplaza requests)
+beautifulsoup4==4.12.3    # Parser HTML
+lxml==5.3.0               # Parser XML/HTML rápido (backend de BeautifulSoup)
+feedparser==6.0.11        # Parser de RSS/Atom feeds
+
+# --- Procesamiento de datos ---
+python-dateutil==2.9.0    # Parsing flexible de fechas
+python-dotenv==1.0.1      # Carga de .env en local
+tenacity==9.0.0           # Retry logic con backoff exponencial
+
+# --- Utilidades ---
+hashlib-additional==0.1   # SHA-256 para deduplicación (stdlib, solo como ref)
