@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getPromises, type Promise } from "@/lib/supabase";
+import { getPromesas, type Promesa } from "@/lib/supabase";
 
 const VERDICT_CONFIG = {
   cumplida: { label: "Cumplida", color: "text-green-400", bg: "bg-green-900/30 border-green-800", icon: "✅" },
@@ -11,7 +11,7 @@ const VERDICT_CONFIG = {
   sin_datos: { label: "Sin Datos", color: "text-gray-400", bg: "bg-gray-900/30 border-gray-800", icon: "❓" },
 } as const;
 
-function PromisaCard({ promise }: { promise: Promise }) {
+function PromisaCard({ promise }: { promise: Promesa }) {
   const verdict = promise.verdict as keyof typeof VERDICT_CONFIG | null;
   const config = verdict ? VERDICT_CONFIG[verdict] : VERDICT_CONFIG.sin_datos;
 
@@ -65,13 +65,13 @@ function PromisaCard({ promise }: { promise: Promise }) {
 }
 
 export default function MuroRealidadPage() {
-  const [promises, setPromises] = useState<Promise[]>([]);
+  const [promises, setPromesas] = useState<Promesa[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterVerdict, setFilterVerdict] = useState<string>("all");
 
   useEffect(() => {
-    getPromises().then((p) => {
-      setPromises(p);
+    getPromesas().then((p) => {
+      setPromesas(p);
       setLoading(false);
     });
   }, []);
