@@ -11,25 +11,71 @@ from scripts.utils.rate_limiter import SCRAPER_LIMITER, polite_sleep
 
 logger = logging.getLogger(__name__)
 
-# RSS feeds de medios chilenos — priorizando investigación y política
+# RSS feeds de medios chilenos — cobertura amplia: prensa, radio, TV, digital, regional
 RSS_FEEDS = {
-    "ciper": "https://ciperchile.cl/feed/",
-    "el_mostrador": "https://www.elmostrador.cl/feed/",
-    "la_tercera_politica": "https://www.latercera.com/politica/feed/",
-    "emol_nacional": "https://www.emol.com/rss/nacional.xml",
-    "biobio_nacional": "https://www.biobiochile.cl/lista/categorias/nacional/feed",
-    "la_segunda": "https://www.lasegunda.com/rss/",
-    "radio_uchile": "https://radio.uchile.cl/feed/",
-    "interferencia": "https://interferencia.cl/feed/",
+    # --- Investigación y política ---
+    "ciper":                "https://ciperchile.cl/feed/",
+    "interferencia":        "https://interferencia.cl/feed/",
+    "labot":                "https://www.labot.cl/feed/",
+    "radio_uchile":         "https://radio.uchile.cl/feed/",
+
+    # --- Medios nacionales generalistas ---
+    "el_mostrador":         "https://www.elmostrador.cl/feed/",
+    "la_tercera_politica":  "https://www.latercera.com/politica/feed/",
+    "la_tercera":           "https://www.latercera.com/feed/",
+    "emol_nacional":        "https://www.emol.com/rss/nacional.xml",
+    "emol_economia":        "https://www.emol.com/rss/economia.xml",
+    "biobio_nacional":      "https://www.biobiochile.cl/lista/categorias/nacional/feed",
+    "biobio_politica":      "https://www.biobiochile.cl/lista/categorias/pais/politica/feed",
+    "la_segunda":           "https://www.lasegunda.com/rss/",
+    "cooperativa":          "https://www.cooperativa.cl/noticias/rss/categoria/pais.xml",
+    "tele13":               "https://www.t13.cl/rss.xml",
+    "24horas":              "https://www.24horas.cl/rss.xml",
+    "meganoticias":         "https://www.meganoticias.cl/rss.xml",
+    "df":                   "https://www.df.cl/rss.xml",
+
+    # --- Medios digitales y alternativos ---
+    "el_desconcierto":      "https://www.eldesconcierto.cl/feed/",
+    "el_ciudadano":         "https://www.elciudadano.com/feed/",
+    "resumen_chile":        "https://resumen.cl/feed/",
+    "radio_zero":           "https://www.radiozero.cl/feed/",
+    "pauta":                "https://www.pauta.cl/feed/",
+
+    # --- Regionales (cubren corrupción municipal) ---
+    "el_rancagüino":        "https://www.elrancaguino.cl/feed/",
+    "la_discusion":         "https://www.ladiscusion.cl/feed/",
+    "estrella_iquique":     "https://www.estrellaiquique.cl/feed/",
+
+    # --- Economía y finanzas (contratos, licitaciones) ---
+    "pulso":                "https://www.pulso.cl/rss.xml",
+    "estrategia":           "https://www.estrategia.cl/rss.xml",
+
+    # --- Internacional sobre Chile ---
+    "bbc_espanol":          "https://feeds.bbci.co.uk/mundo/rss.xml",
+    "reuters_latam":        "https://feeds.reuters.com/reuters/MXdomesticNews",
 }
 
-# Palabras clave para filtrar noticias relevantes
+# Palabras clave — corrupción + poder + economía + sociedad
 KEYWORDS_CORRUPCION = [
-    "corrupción", "licitación", "sobreprecios", "malversación",
-    "cohecho", "lobby", "conflicto de interés", "fraude",
-    "Contraloría", "fiscalía", "imputado", "formalizado",
-    "gasto público", "adjudicación", "irregular", "desvío",
-    "nepotismo", "puerta giratoria", "financiamiento político",
+    # Corrupción directa
+    "corrupción", "sobreprecios", "malversación", "cohecho", "fraude",
+    "desvío de fondos", "colusión", "cartelización", "lavado de dinero",
+    "nepotismo", "clientelismo", "tráfico de influencias",
+    # Institucional
+    "Contraloría", "Fiscalía", "imputado", "formalizado", "querella",
+    "Ministerio Público", "SII", "PDI", "investigación penal",
+    # Contratos y licitaciones
+    "licitación", "adjudicación", "conflicto de interés", "lobby",
+    "gasto público", "irregular", "puerta giratoria", "financiamiento político",
+    "contrato público", "convenio marco", "trato directo",
+    # Empresas y poder
+    "multa", "sanción", "infracción", "directorio", "sociedad offshore",
+    "paraíso fiscal", "triangulación", "facturas falsas",
+    # Social y político
+    "abusos", "montaje", "persecución política", "encubrimiento",
+    "impunidad", "caso judicial", "procesado", "condenado",
+    # Redes sociales y desinformación
+    "bots", "fake news", "desinformación", "campaña sucia",
 ]
 
 
