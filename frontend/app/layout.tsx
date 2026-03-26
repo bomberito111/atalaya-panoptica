@@ -1,18 +1,7 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
 import LiveViewers from "@/components/LiveViewers";
 import "./globals.css";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 
 export const metadata: Metadata = {
   title: "ATALAYA PANÓPTICA — Vigilancia ciudadana anticorrupción Chile",
@@ -34,43 +23,101 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  return (
-    <html lang="es" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col bg-gray-950 text-gray-100">
-        <nav className="border-b border-gray-800 bg-gray-900/90 backdrop-blur-sm sticky top-0 z-50">
-          <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
-            {/* Logo */}
-            <Link href="/" className="text-white font-bold text-lg tracking-tight flex-shrink-0">
-              ATALAYA 🇨🇱
-            </Link>
+  const today = new Date().toLocaleDateString("es-CL", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
 
-            {/* Nav links */}
-            <div className="flex items-center gap-1 sm:gap-2">
+  return (
+    <html lang="es" className="h-full">
+      <body className="min-h-full flex flex-col bg-[#F5F5F5] text-[#1B212C] font-sans antialiased">
+
+        {/* ── Barra superior delgada ─────────────────────────────────────── */}
+        <div className="bg-[#1B212C] text-white text-xs px-4 py-1.5">
+          <div className="max-w-7xl mx-auto flex items-center justify-between">
+            <span className="font-semibold tracking-wider uppercase">
+              ATALAYA PANÓPTICA
+            </span>
+            <div className="flex items-center gap-3">
+              <span className="text-gray-400 hidden sm:inline">{today}</span>
+              <span className="flex items-center gap-1 text-[#E00911] font-bold">
+                <span className="inline-block w-2 h-2 rounded-full bg-[#E00911] animate-pulse" />
+                EN VIVO
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Header principal blanco ────────────────────────────────────── */}
+        <div className="bg-white border-b border-[#ECECEC]">
+          <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between gap-4">
+            <Link href="/" className="flex flex-col leading-none">
+              <div className="flex items-baseline gap-1">
+                <span className="text-3xl sm:text-4xl font-black text-[#E00911] tracking-tight">
+                  ATALAYA
+                </span>
+                <span className="text-3xl sm:text-4xl font-black text-[#213E76] tracking-tight">
+                  PANÓPTICA
+                </span>
+              </div>
+              <p className="text-[#1B212C] text-xs mt-0.5 tracking-wide">
+                El diario digital que caza la corrupción en Chile 🇨🇱
+              </p>
+            </Link>
+            <div className="hidden sm:flex flex-col items-end gap-1 text-xs text-[#8090A6]">
+              <span>Vigilancia ciudadana · Código abierto</span>
+              <a
+                href="https://github.com/bomberito111/atalaya-panoptica"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-[#213E76] transition-colors"
+              >
+                GitHub →
+              </a>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Barra de navegación azul ────────────────────────────────────── */}
+        <nav className="bg-[#213E76] sticky top-0 z-50 shadow-md">
+          <div className="max-w-7xl mx-auto px-4 flex items-center h-10">
+            <div className="flex items-center gap-0 flex-1 overflow-x-auto">
               {NAV_LINKS.map((link) => (
                 <Link
                   key={link.href}
                   href={link.href}
-                  className="text-gray-400 hover:text-white px-2 sm:px-3 py-2 rounded-md text-xs sm:text-sm font-medium transition-colors"
+                  className="flex-shrink-0 text-white/90 hover:text-white hover:bg-white/10 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap"
                 >
                   {link.label}
                 </Link>
               ))}
-              <Link
-                href="/ayudanos/"
-                className="ml-2 px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded-md text-xs sm:text-sm font-semibold transition-colors flex-shrink-0"
-              >
-                🚨 Denunciar
-              </Link>
             </div>
+            <Link
+              href="/ayudanos/"
+              className="flex-shrink-0 ml-2 px-3 py-1.5 bg-[#E00911] hover:bg-red-700 text-white rounded text-xs font-black uppercase tracking-wide transition-colors"
+            >
+              DENUNCIAR
+            </Link>
           </div>
         </nav>
 
-        <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 py-8">
+        {/* ── Contenido principal ─────────────────────────────────────────── */}
+        <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-6">
           {children}
         </main>
 
-        <footer className="border-t border-gray-800 py-4 text-center text-gray-600 text-xs">
-          ATALAYA PANÓPTICA · Código abierto · Datos públicos del Estado chileno
+        {/* ── Footer ──────────────────────────────────────────────────────── */}
+        <footer className="bg-[#1B212C] text-gray-400 text-xs py-5 mt-4">
+          <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+            <span>
+              © {new Date().getFullYear()} ATALAYA PANÓPTICA · Datos públicos del Estado chileno · Código abierto
+            </span>
+            <span className="text-gray-600">
+              Las detecciones son indicios automatizados de IA, no acusaciones ni sentencias judiciales.
+            </span>
+          </div>
         </footer>
 
         {/* Contador de visitantes en tiempo real — esquina inferior derecha */}

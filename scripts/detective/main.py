@@ -31,6 +31,7 @@ from scripts.detective.fake_news_detector import check_claim
 from scripts.detective.web_researcher import enrich_anomaly_context
 from scripts.detective.post_generator import maybe_generate_and_save_post
 from scripts.detective.investigador import run as investigador_run
+from scripts.detective.fix_fechas import run as fix_fechas_run
 from scripts.utils.supabase_client import get_client as _db
 
 
@@ -225,6 +226,15 @@ def main():
     logger.info(
         f"El Detective finalizado: {processed} exitosos, {errors} errores de {processed + errors} procesados"
     )
+
+    # ── Fix retroactivo de fechas ──────────────────────────────────────────────
+    # Arregla anomalías sin fecha_evento buscando en el queue item correspondiente
+    try:
+        arregladas = fix_fechas_run()
+        if arregladas > 0:
+            logger.info(f"Fix fechas: {arregladas} anomalías actualizadas con fecha real")
+    except Exception as fix_err:
+        logger.warning(f"Fix fechas falló (no crítico): {fix_err}")
 
     # ── Investigador Automático ────────────────────────────────────────────────
     # Después de procesar la cola, investigar las anomalías más importantes en profundidad

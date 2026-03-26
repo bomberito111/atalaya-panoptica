@@ -1,52 +1,50 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { getAnomalies, type Anomaly } from "@/lib/supabase";
 import CasoModal from "@/components/CasoModal";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const TIPO: Record<string, { color: string; bg: string; border: string; icon: string; label: string }> = {
-  sobreprecio:       { color: "text-red-400",    bg: "bg-red-950",    border: "border-red-700",    icon: "💰", label: "Sobreprecio" },
-  conflicto_interes: { color: "text-orange-400", bg: "bg-orange-950", border: "border-orange-700", icon: "🤝", label: "Conflicto de Interés" },
-  puerta_giratoria:  { color: "text-yellow-400", bg: "bg-yellow-950", border: "border-yellow-700", icon: "🚪", label: "Puerta Giratoria" },
-  bot_network:       { color: "text-purple-400", bg: "bg-purple-950", border: "border-purple-700", icon: "🤖", label: "Red de Bots" },
-  fake_news:         { color: "text-teal-400",   bg: "bg-teal-950",   border: "border-teal-700",   icon: "📰", label: "Fake News" },
+const TIPO: Record<string, { colorBg: string; colorText: string; colorBadge: string; icon: string; label: string }> = {
+  sobreprecio:       { colorBg: "bg-red-100",    colorText: "text-red-800",    colorBadge: "bg-red-600 text-white",    icon: "💰", label: "Sobreprecio" },
+  conflicto_interes: { colorBg: "bg-orange-100", colorText: "text-orange-800", colorBadge: "bg-orange-500 text-white", icon: "🤝", label: "Conflicto de Interés" },
+  puerta_giratoria:  { colorBg: "bg-yellow-100", colorText: "text-yellow-800", colorBadge: "bg-yellow-500 text-white", icon: "🚪", label: "Puerta Giratoria" },
+  bot_network:       { colorBg: "bg-purple-100", colorText: "text-purple-800", colorBadge: "bg-purple-600 text-white", icon: "🤖", label: "Red de Bots" },
+  fake_news:         { colorBg: "bg-teal-100",   colorText: "text-teal-800",   colorBadge: "bg-teal-600 text-white",   icon: "📰", label: "Fake News" },
 };
 
 function getTipo(type: string) {
-  return TIPO[type] ?? { color: "text-gray-400", bg: "bg-gray-900", border: "border-gray-700", icon: "⚠️", label: type.replace(/_/g, " ") };
-}
-
-function getEventDate(a: Anomaly): { display: string; iso: string; short: string } {
-  const raw = (a.evidence?.fecha_evento as string | undefined) ?? a.created_at;
-  const d = new Date(raw);
-  const isValid = !isNaN(d.getTime());
-  return {
-    display: isValid
-      ? d.toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
-      : "Fecha desconocida",
-    short: isValid
-      ? d.toLocaleDateString("es-CL", { day: "numeric", month: "short", year: "numeric" })
-      : "—",
-    iso: isValid ? d.toISOString() : a.created_at,
-  };
-}
-
-function ConfBadge({ pct }: { pct: number }) {
-  const cls = pct >= 80
-    ? "bg-red-900/60 text-red-300 border-red-800"
-    : pct >= 65
-    ? "bg-orange-900/60 text-orange-300 border-orange-800"
-    : "bg-yellow-900/60 text-yellow-300 border-yellow-800";
   return (
-    <span className={`text-xs font-bold tabular-nums px-2 py-0.5 rounded-full border ${cls}`}>
-      {pct}% certeza
-    </span>
+    TIPO[type] ?? {
+      colorBg: "bg-gray-100",
+      colorText: "text-gray-700",
+      colorBadge: "bg-gray-600 text-white",
+      icon: "⚠️",
+      label: type.replace(/_/g, " "),
+    }
   );
 }
 
-// ── Tarjeta expandible ────────────────────────────────────────────────────────
+// SOLO usamos evidence.fecha_evento — NUNCA created_at como sustituto de fecha real
+function getEventDate(a: Anomaly): { display: string; short: string; isReal: boolean } {
+  const raw = a.evidence?.fecha_evento as string | undefined | null;
+  if (!raw || String(raw).trim().length < 4) {
+    return { display: "Fecha no disponible", short: "Fecha no disponible", isReal: false };
+  }
+  const d = new Date(raw);
+  if (isNaN(d.getTime())) {
+    return { display: "Fecha no disponible", short: "Fecha no disponible", isReal: false };
+  }
+  return {
+    display: d.toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long", year: "numeric" }),
+    short: d.toLocaleDateString("es-CL", { day: "numeric", month: "short", year: "numeric" }),
+    isReal: true,
+  };
+}
+
+// ── Tarjeta de caso ────────────────────────────────────────────────────────
 
 function CasoRow({ a, idx }: { a: Anomaly; idx: number }) {
   const t = getTipo(a.anomaly_type);
@@ -56,36 +54,42 @@ function CasoRow({ a, idx }: { a: Anomaly; idx: number }) {
   const entities = (Array.isArray(ev.entidades_nombradas) ? ev.entidades_nombradas : []) as string[];
   const evidenceText = ev.texto as string | undefined;
   const recomendacion = ev.recomendacion as string | undefined;
-  const { display: dateDisplay, short: dateShort } = getEventDate(a);
+  const { display: dateDisplay } = getEventDate(a);
 
   const [open, setOpen] = useState(false);
 
   async function share() {
+    const { short: dateShort } = getEventDate(a);
     const txt = `${t.icon} ${t.label.toUpperCase()} — ${dateShort}\n\n${a.description}\n\nFuente: ATALAYA PANÓPTICA 🇨🇱\nhttps://bomberito111.github.io/atalaya-panoptica/casos/`;
-    try { await navigator.clipboard.writeText(txt); }
-    catch { alert(txt); }
+    try {
+      await navigator.clipboard.writeText(txt);
+    } catch {
+      alert(txt);
+    }
   }
 
   return (
-    <article className={`rounded-xl overflow-hidden border ${t.border} bg-gray-950 transition-shadow hover:shadow-lg`}>
-
+    <article className="bg-white border border-[#ECECEC] rounded overflow-hidden hover:shadow-md transition-shadow">
       {/* Franja tipo */}
-      <div className={`px-4 py-2 flex flex-wrap items-center justify-between gap-2 ${t.bg} border-b ${t.border}`}>
+      <div className={`px-4 py-2 flex flex-wrap items-center justify-between gap-2 ${t.colorBg}`}>
         <div className="flex items-center gap-2 flex-wrap">
-          <span className={`text-xs font-bold tracking-widest uppercase ${t.color} flex items-center gap-1`}>
+          <span className={`text-xs font-bold tracking-widest uppercase flex items-center gap-1 ${t.colorText}`}>
             {t.icon} {t.label}
           </span>
-          <ConfBadge pct={pct} />
+          <span className={`text-xs font-black px-2 py-0.5 rounded ${
+            pct >= 80 ? "bg-[#E00911] text-white" : pct >= 65 ? "bg-orange-500 text-white" : "bg-yellow-500 text-white"
+          }`}>
+            {pct}% certeza
+          </span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-500 font-mono">#{idx + 1}</span>
+          <span className="text-xs text-[#8090A6] font-mono">#{idx + 1}</span>
           {sourceUrl && (
             <a
               href={sourceUrl}
               target="_blank"
               rel="noopener noreferrer"
-              title="Ver fuente original"
-              className="text-xs text-blue-400 hover:text-blue-300 font-medium transition-colors"
+              className="text-xs text-[#213E76] hover:underline font-medium"
             >
               🔗 Fuente
             </a>
@@ -95,14 +99,13 @@ function CasoRow({ a, idx }: { a: Anomaly; idx: number }) {
 
       {/* Cuerpo */}
       <div className="px-5 py-4 space-y-3">
-
         {/* Fecha prominente */}
-        <time className="block text-xs text-gray-500 font-medium uppercase tracking-wider">
+        <time className="block text-xs text-[#8090A6] font-semibold uppercase tracking-wider">
           📅 {dateDisplay}
         </time>
 
         {/* Titular */}
-        <p className="text-white text-base sm:text-lg font-semibold leading-snug">
+        <p className="text-[#1B212C] text-base sm:text-lg font-semibold leading-snug">
           {a.description}
         </p>
 
@@ -110,35 +113,45 @@ function CasoRow({ a, idx }: { a: Anomaly; idx: number }) {
         {entities.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
             {entities.map((e, i) => (
-              <span key={i} className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-gray-800 text-gray-300 rounded-full text-xs border border-gray-700">
+              <span key={i} className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-gray-100 text-[#1B212C] rounded-full text-xs border border-[#ECECEC]">
                 👤 {e}
               </span>
             ))}
           </div>
         )}
 
+        {/* Mini barra de probabilidad */}
+        <div className="space-y-1">
+          <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full ${pct >= 80 ? "bg-[#E00911]" : pct >= 65 ? "bg-orange-500" : "bg-yellow-500"}`}
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+        </div>
+
         {/* Expandible */}
         {(evidenceText || recomendacion) && (
           <>
             <button
-              onClick={() => setOpen(x => !x)}
-              className={`text-xs font-medium transition-colors ${t.color} hover:opacity-80`}
+              onClick={() => setOpen((x) => !x)}
+              className={`text-xs font-semibold transition-colors text-[#213E76] hover:text-[#E00911]`}
             >
               {open ? "▲ Ocultar detalle" : "▼ Ver evidencia y línea de investigación"}
             </button>
 
             {open && (
-              <div className="space-y-3 pt-1 border-t border-gray-800 mt-2">
+              <div className="space-y-3 pt-2 border-t border-[#ECECEC]">
                 {evidenceText && (
-                  <blockquote className="border-l-2 border-gray-600 pl-4 space-y-1">
-                    <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Evidencia del documento</p>
-                    <p className="text-gray-300 text-sm italic leading-relaxed">"{evidenceText}"</p>
+                  <blockquote className="border-l-4 border-[#213E76] pl-4 bg-gray-50 py-2 pr-3 rounded-r">
+                    <p className="text-xs text-[#8090A6] uppercase tracking-wider font-semibold mb-1">Evidencia del documento</p>
+                    <p className="text-[#1B212C] text-sm italic leading-relaxed">&ldquo;{evidenceText}&rdquo;</p>
                   </blockquote>
                 )}
                 {recomendacion && (
-                  <div className="bg-amber-950/50 border border-amber-900/60 rounded-lg px-4 py-3">
-                    <p className="text-xs text-amber-500 uppercase tracking-wider font-semibold mb-1">🔎 Línea de investigación</p>
-                    <p className="text-amber-200 text-sm leading-relaxed">{recomendacion}</p>
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+                    <p className="text-xs text-amber-700 uppercase tracking-wider font-semibold mb-1">🔎 Línea de investigación</p>
+                    <p className="text-amber-900 text-sm leading-relaxed">{recomendacion}</p>
                   </div>
                 )}
               </div>
@@ -147,19 +160,19 @@ function CasoRow({ a, idx }: { a: Anomaly; idx: number }) {
         )}
 
         {/* Acciones */}
-        <div className="flex flex-wrap gap-2 pt-1">
+        <div className="flex flex-wrap gap-2 pt-1 border-t border-[#ECECEC]">
           <button
             onClick={share}
-            className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-400 rounded-lg text-xs font-medium transition-colors border border-gray-700"
+            className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-[#1B212C] rounded text-xs font-medium transition-colors border border-[#ECECEC]"
           >
             📤 Compartir
           </button>
-          <a
-            href={`/red-corrupcion/`}
-            className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-400 rounded-lg text-xs font-medium transition-colors border border-gray-700"
+          <Link
+            href="/red-corrupcion/"
+            className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-[#1B212C] rounded text-xs font-medium transition-colors border border-[#ECECEC]"
           >
             🕸 Ver red
-          </a>
+          </Link>
         </div>
       </div>
     </article>
@@ -178,9 +191,9 @@ const FILTROS = [
 ];
 
 const ORDEN = [
-  { key: "fecha_desc",  label: "Más recientes" },
-  { key: "fecha_asc",   label: "Más antiguos" },
-  { key: "conf_desc",   label: "Mayor certeza" },
+  { key: "fecha_desc", label: "Más recientes" },
+  { key: "fecha_asc",  label: "Más antiguos" },
+  { key: "conf_desc",  label: "Mayor certeza" },
 ];
 
 // ── Página ────────────────────────────────────────────────────────────────────
@@ -196,11 +209,13 @@ export default function CasosPage() {
   const [modalAnomaly, setModalAnomaly] = useState<Anomaly | null>(null);
 
   const cargar = useCallback(async () => {
-    const raw = await getAnomalies(0.4); // umbral más bajo para mostrar más casos
-    // Ordenar inicialmente por fecha evento
+    const raw = await getAnomalies(0.4);
+    // Ordenar: primero por fecha_evento si existe
     const sorted = [...raw].sort((x, y) => {
-      const dx = new Date((x.evidence?.fecha_evento as string) || x.created_at).getTime();
-      const dy = new Date((y.evidence?.fecha_evento as string) || y.created_at).getTime();
+      const rawX = x.evidence?.fecha_evento as string | undefined;
+      const rawY = y.evidence?.fecha_evento as string | undefined;
+      const dx = rawX && rawX.trim().length >= 4 ? new Date(rawX).getTime() : 0;
+      const dy = rawY && rawY.trim().length >= 4 ? new Date(rawY).getTime() : 0;
       return dy - dx;
     });
     setAll(sorted);
@@ -215,7 +230,7 @@ export default function CasosPage() {
   }, [cargar]);
 
   // Filtrar
-  const filtrados = all.filter(a => {
+  const filtrados = all.filter((a) => {
     if (filtro !== "todos" && a.anomaly_type !== filtro) return false;
     if (busqueda.trim()) {
       const q = busqueda.toLowerCase();
@@ -224,76 +239,82 @@ export default function CasosPage() {
       if (
         !a.description.toLowerCase().includes(q) &&
         !entityNames.some((e: string) => e.toLowerCase().includes(q))
-      ) return false;
+      )
+        return false;
     }
     return true;
   });
 
-  // Ordenar
+  // Ordenar (solo por fecha_evento — NUNCA usando created_at como sustituto)
   const ordenados = [...filtrados].sort((x, y) => {
-    if (orden === "fecha_asc") {
-      return new Date((x.evidence?.fecha_evento as string) || x.created_at).getTime()
-           - new Date((y.evidence?.fecha_evento as string) || y.created_at).getTime();
-    }
     if (orden === "conf_desc") return y.confidence - x.confidence;
-    // fecha_desc (default)
-    return new Date((y.evidence?.fecha_evento as string) || y.created_at).getTime()
-         - new Date((x.evidence?.fecha_evento as string) || x.created_at).getTime();
+
+    const rawX = x.evidence?.fecha_evento as string | undefined;
+    const rawY = y.evidence?.fecha_evento as string | undefined;
+    const dx = rawX && rawX.trim().length >= 4 ? new Date(rawX).getTime() : 0;
+    const dy = rawY && rawY.trim().length >= 4 ? new Date(rawY).getTime() : 0;
+
+    if (orden === "fecha_asc") return dx - dy;
+    return dy - dx; // fecha_desc default
   });
 
   const visibles = ordenados.slice(0, visible);
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6 pb-16">
+    <div className="space-y-5 pb-16">
 
-      {/* Cabecera */}
-      <header className="border-b-2 border-white pb-4 pt-2">
-        <p className="text-xs text-gray-500 uppercase tracking-widest mb-1">
+      {/* ── Cabecera ─────────────────────────────────────────────────────── */}
+      <header className="bg-white border border-[#ECECEC] rounded overflow-hidden">
+        <div className="bg-[#213E76] text-white px-5 py-3">
+          <h1 className="text-xl font-black tracking-tight">🚨 Registro de Casos Detectados</h1>
+          <p className="text-white/70 text-sm mt-0.5">
+            {loading
+              ? "Cargando…"
+              : `${all.length} casos registrados · ${filtrados.length} con los filtros actuales`}
+            {lastRefresh && (
+              <span className="ml-3 text-green-300 text-xs">
+                ● actualizado {lastRefresh.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}
+              </span>
+            )}
+          </p>
+        </div>
+        <div className="px-5 py-3 text-xs text-[#8090A6]">
           {new Date().toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
-          {lastRefresh && <span className="ml-3 text-green-500">● actualizado hace {Math.round((Date.now() - lastRefresh.getTime()) / 1000)}s</span>}
-        </p>
-        <h1 className="text-3xl font-black text-white tracking-tight leading-none">
-          🚨 Registro de Casos
-        </h1>
-        <p className="text-gray-400 text-sm mt-1">
-          {loading ? "Cargando…" : `${all.length} casos registrados · ${filtrados.length} con los filtros actuales`}
-        </p>
+        </div>
       </header>
 
-      {/* Búsqueda */}
+      {/* ── Búsqueda y orden ─────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row gap-2">
         <input
           type="text"
           placeholder="🔍 Buscar por nombre, empresa, descripción…"
           value={busqueda}
-          onChange={e => { setBusqueda(e.target.value); setVisible(20); }}
-          className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-gray-500"
+          onChange={(e) => { setBusqueda(e.target.value); setVisible(20); }}
+          className="flex-1 bg-white border border-[#ECECEC] rounded px-4 py-2 text-sm text-[#1B212C] placeholder-[#8090A6] focus:outline-none focus:border-[#213E76]"
         />
         <select
           value={orden}
-          onChange={e => setOrden(e.target.value)}
-          className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-300 focus:outline-none focus:border-gray-500"
+          onChange={(e) => setOrden(e.target.value)}
+          className="bg-white border border-[#ECECEC] rounded px-3 py-2 text-sm text-[#1B212C] focus:outline-none focus:border-[#213E76]"
         >
-          {ORDEN.map(o => (
+          {ORDEN.map((o) => (
             <option key={o.key} value={o.key}>{o.label}</option>
           ))}
         </select>
       </div>
 
-      {/* Filtros por tipo */}
+      {/* ── Filtros por tipo ─────────────────────────────────────────────── */}
       <div className="flex flex-wrap gap-2">
-        {FILTROS.map(f => {
-          const count = f.key === "todos"
-            ? all.length
-            : all.filter(a => a.anomaly_type === f.key).length;
+        {FILTROS.map((f) => {
+          const count = f.key === "todos" ? all.length : all.filter((a) => a.anomaly_type === f.key).length;
           return (
             <button
               key={f.key}
               onClick={() => { setFiltro(f.key); setVisible(20); }}
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors border ${
+              className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors border ${
                 filtro === f.key
-                  ? "bg-white text-gray-900 border-white"
-                  : "bg-gray-900 text-gray-400 border-gray-700 hover:border-gray-500 hover:text-gray-200"
+                  ? "bg-[#213E76] text-white border-[#213E76]"
+                  : "bg-white text-[#1B212C] border-[#ECECEC] hover:border-[#213E76] hover:text-[#213E76]"
               }`}
             >
               {f.label} <span className="opacity-60">({count})</span>
@@ -302,30 +323,30 @@ export default function CasosPage() {
         })}
       </div>
 
-      {/* Lista de casos */}
+      {/* ── Lista de casos ────────────────────────────────────────────────── */}
       {loading ? (
         <div className="space-y-4">
-          {[1, 2, 3, 4, 5].map(i => (
-            <div key={i} className="h-28 rounded-xl bg-gray-900 border border-gray-800 animate-pulse" />
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="h-28 rounded bg-white border border-[#ECECEC] animate-pulse" />
           ))}
         </div>
       ) : ordenados.length === 0 ? (
-        <div className="text-center py-16 text-gray-600">
+        <div className="text-center py-16 text-[#8090A6] bg-white border border-[#ECECEC] rounded">
           <p className="text-4xl mb-3">🔍</p>
-          <p className="text-lg font-medium">Sin casos con esos filtros</p>
+          <p className="text-lg font-medium text-[#1B212C]">Sin casos con esos filtros</p>
           <p className="text-sm mt-1">
             {busqueda ? "Prueba con otro término de búsqueda" : "El sistema está acumulando datos — vuelve pronto"}
           </p>
           <button
             onClick={() => { setFiltro("todos"); setBusqueda(""); }}
-            className="mt-4 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm transition-colors"
+            className="mt-4 px-4 py-2 bg-[#213E76] hover:bg-blue-900 text-white rounded text-sm transition-colors"
           >
             Ver todos los casos
           </button>
         </div>
       ) : (
         <>
-          <p className="text-xs text-gray-600 mb-2">Haz clic en cualquier caso para ver la investigación completa</p>
+          <p className="text-xs text-[#8090A6]">Haz clic en cualquier caso para ver la investigación completa</p>
           <div className="space-y-4">
             {visibles.map((a, i) => (
               <div key={a.id} onClick={() => setModalAnomaly(a)} className="cursor-pointer">
@@ -334,12 +355,11 @@ export default function CasosPage() {
             ))}
           </div>
 
-          {/* Cargar más */}
           {visible < ordenados.length && (
-            <div className="text-center pt-4">
+            <div className="text-center pt-2">
               <button
-                onClick={() => setVisible(v => v + 20)}
-                className="px-6 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-xl text-sm font-medium transition-colors border border-gray-700"
+                onClick={() => setVisible((v) => v + 20)}
+                className="px-6 py-2.5 bg-white hover:bg-gray-50 text-[#213E76] rounded text-sm font-semibold transition-colors border border-[#ECECEC]"
               >
                 Cargar más ({ordenados.length - visible} restantes)
               </button>
@@ -347,7 +367,7 @@ export default function CasosPage() {
           )}
 
           {visible >= ordenados.length && ordenados.length > 0 && (
-            <p className="text-center text-xs text-gray-600 pt-2">
+            <p className="text-center text-xs text-[#8090A6] pt-2">
               — Mostrando todos los {ordenados.length} casos —
             </p>
           )}
@@ -360,17 +380,19 @@ export default function CasosPage() {
       )}
 
       {/* CTA denunciar */}
-      <div className="bg-red-950/40 border border-red-900/60 rounded-xl p-5 text-center space-y-3">
-        <p className="text-red-300 font-bold text-lg">¿Conoces un caso de corrupción?</p>
-        <p className="text-gray-400 text-sm">
+      <div className="bg-white border border-[#E00911]/30 rounded p-5 text-center space-y-3">
+        <div className="bg-[#E00911] text-white text-xs font-black uppercase tracking-widest px-4 py-1.5 rounded inline-block mb-1">
+          ¿Conoces un caso de corrupción?
+        </div>
+        <p className="text-[#8090A6] text-sm">
           El sistema detecta automáticamente, pero la ciudadanía tiene información clave que los datos públicos no muestran.
         </p>
-        <a
+        <Link
           href="/ayudanos/"
-          className="inline-block px-6 py-2.5 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg text-sm transition-colors"
+          className="inline-block px-6 py-2.5 bg-[#E00911] hover:bg-red-700 text-white font-bold rounded text-sm transition-colors"
         >
           🚨 Enviar denuncia ciudadana
-        </a>
+        </Link>
       </div>
     </div>
   );

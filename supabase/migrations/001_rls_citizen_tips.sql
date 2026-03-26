@@ -1,29 +1,37 @@
--- ATALAYA PANÓPTICA — Migración RLS
--- Ejecutar en Supabase Dashboard → SQL Editor
--- Permite que usuarios anónimos envíen denuncias ciudadanas
+-- ============================================================
+-- ATALAYA PANÓPTICA — Migración: Permisos para denuncias ciudadanas
+-- ============================================================
+-- INSTRUCCIONES:
+-- 1. Ve a https://supabase.com/dashboard/project/_/sql/new
+-- 2. Pega TODO este script
+-- 3. Haz clic en "Run"
+-- ============================================================
 
--- 1. Habilitar RLS si no está habilitado
-ALTER TABLE investigation_queue ENABLE ROW LEVEL SECURITY;
+-- 1. Dar permiso de INSERT a usuarios anónimos en investigation_queue
+GRANT INSERT ON TABLE public.investigation_queue TO anon;
 
--- 2. Política: anónimos pueden insertar SOLO si source = 'ciudadano'
-CREATE POLICY IF NOT EXISTS "ciudadanos_pueden_denunciar"
-ON investigation_queue
+-- 2. Habilitar RLS (Row Level Security)
+ALTER TABLE public.investigation_queue ENABLE ROW LEVEL SECURITY;
+
+-- 3. Política: anónimos pueden insertar SOLO denuncias ciudadanas
+DROP POLICY IF EXISTS "ciudadanos_pueden_denunciar" ON public.investigation_queue;
+CREATE POLICY "ciudadanos_pueden_denunciar"
+ON public.investigation_queue
 FOR INSERT
 TO anon
 WITH CHECK (source = 'ciudadano');
 
--- 3. El servicio (scripts Python) puede leer/actualizar/escribir todo
-CREATE POLICY IF NOT EXISTS "service_full_access"
-ON investigation_queue
+-- 4. El servicio Python (scripts con service_role) tiene acceso completo
+DROP POLICY IF EXISTS "service_full_access" ON public.investigation_queue;
+CREATE POLICY "service_full_access"
+ON public.investigation_queue
 FOR ALL
 TO service_role
 USING (true)
 WITH CHECK (true);
 
--- 4. Anónimos NO pueden leer la cola (privacidad de denuncias)
--- (No se crea política SELECT para anon → por defecto bloqueado)
-
--- Verificar
-SELECT schemaname, tablename, policyname, permissive, roles, cmd
+-- 5. Verificar que quedó bien
+SELECT schemaname, tablename, policyname, roles, cmd
 FROM pg_policies
-WHERE tablename = 'investigation_queue';
+WHERE tablename = 'investigation_queue'
+ORDER BY cmd;

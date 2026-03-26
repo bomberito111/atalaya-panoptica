@@ -118,17 +118,10 @@ const TEORIAS = [
   },
 ];
 
-const RIESGO_COLORES: Record<string, string> = {
-  red: "bg-red-900/30 border-red-700 text-red-400",
-  orange: "bg-orange-900/30 border-orange-700 text-orange-400",
-  yellow: "bg-yellow-900/30 border-yellow-700 text-yellow-400",
-  blue: "bg-blue-900/30 border-blue-700 text-blue-400",
-};
-
-const NIVEL_BADGE: Record<string, string> = {
-  "CRÍTICO": "bg-red-500 text-white",
-  "ALTO": "bg-orange-500 text-white",
-  "MEDIO": "bg-yellow-500 text-black",
+const NIVEL_COLOR: Record<string, { headerBg: string; headerText: string; badge: string; border: string; accent: string }> = {
+  "CRÍTICO": { headerBg: "bg-red-700",    headerText: "text-white", badge: "bg-red-100 text-red-800 border-red-300",    border: "border-red-200",   accent: "bg-red-50" },
+  "ALTO":    { headerBg: "bg-orange-600", headerText: "text-white", badge: "bg-orange-100 text-orange-800 border-orange-300", border: "border-orange-200", accent: "bg-orange-50" },
+  "MEDIO":   { headerBg: "bg-[#213E76]",  headerText: "text-white", badge: "bg-blue-100 text-blue-800 border-blue-300",   border: "border-blue-200",  accent: "bg-blue-50" },
 };
 
 // ─── Componente de flujo de dinero ──────────────────────────────────────────
@@ -136,65 +129,77 @@ function FlujoStep({ de, a, monto, metodo, idx }: { de: string; a: string; monto
   return (
     <div className="flex items-start gap-3">
       <div className="flex-shrink-0 flex flex-col items-center">
-        <div className="w-7 h-7 rounded-full bg-gray-700 border border-gray-600 flex items-center justify-center text-xs font-bold text-gray-300">
+        <div className="w-7 h-7 rounded-full bg-[#213E76] text-white flex items-center justify-center text-xs font-bold">
           {idx + 1}
         </div>
-        <div className="w-px flex-1 bg-gray-700 mt-1 min-h-4" />
+        <div className="w-px flex-1 bg-gray-200 mt-1 min-h-4" />
       </div>
       <div className="flex-1 pb-4 space-y-1">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm text-white font-medium">{de}</span>
-          <span className="text-gray-500 text-xs">→</span>
-          <span className="text-sm text-yellow-400 font-medium">{a}</span>
+          <span className="text-sm text-[#1B212C] font-semibold">{de}</span>
+          <span className="text-[#8090A6] text-xs font-bold">→</span>
+          <span className="text-sm text-[#213E76] font-semibold">{a}</span>
         </div>
         <div className="flex gap-3 flex-wrap">
-          <span className="text-xs px-2 py-0.5 bg-green-900/40 border border-green-800 text-green-400 rounded">
+          <span className="text-xs px-2 py-0.5 bg-green-100 border border-green-300 text-green-800 rounded font-medium">
             💵 {monto}
           </span>
-          <span className="text-xs text-gray-500">{metodo}</span>
+          <span className="text-xs text-[#8090A6]">{metodo}</span>
         </div>
       </div>
     </div>
   );
 }
 
-// ─── Tarjeta de teoría ───────────────────────────────────────────────────────
+// ─── Tarjeta de teoría (artículo estilo Emol) ─────────────────────────────
 function TarjetaTeoria({ t, expanded, onToggle }: { t: typeof TEORIAS[0]; expanded: boolean; onToggle: () => void }) {
-  const colorCls = RIESGO_COLORES[t.color] || RIESGO_COLORES.blue;
-  const badgeCls = NIVEL_BADGE[t.nivel_riesgo] || "bg-gray-600 text-white";
+  const colors = NIVEL_COLOR[t.nivel_riesgo] ?? NIVEL_COLOR["MEDIO"];
 
   return (
-    <div className={`border rounded-xl overflow-hidden transition-all ${colorCls}`}>
-      {/* Header */}
+    <article className={`bg-white border ${colors.border} rounded overflow-hidden hover:shadow-md transition-shadow`}>
+      {/* Header de sección estilo Emol */}
       <button
         onClick={onToggle}
-        className="w-full text-left p-5 flex items-start gap-4"
+        className={`w-full text-left ${colors.headerBg} ${colors.headerText} px-5 py-3 flex items-center justify-between gap-3`}
       >
-        <span className="text-3xl flex-shrink-0">{t.emoji}</span>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className={`text-xs font-bold px-2 py-0.5 rounded ${badgeCls}`}>
-              {t.nivel_riesgo}
-            </span>
-            <span className="text-xs text-gray-500">{t.estado}</span>
+        <div className="flex items-center gap-3">
+          <span className="text-2xl">{t.emoji}</span>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className={`text-xs font-bold px-2 py-0.5 rounded border ${colors.badge}`}>
+                NIVEL {t.nivel_riesgo}
+              </span>
+            </div>
+            <h3 className="text-base font-black leading-snug mt-0.5">
+              {t.titulo}
+            </h3>
           </div>
-          <h3 className="text-white font-semibold text-base mt-1 leading-snug">{t.titulo}</h3>
-          <p className="text-gray-400 text-sm mt-1 leading-relaxed line-clamp-2">{t.resumen}</p>
         </div>
-        <span className="text-gray-500 flex-shrink-0 mt-1">
+        <span className="text-lg flex-shrink-0 opacity-80">
           {expanded ? "▲" : "▼"}
         </span>
       </button>
 
+      {/* Resumen siempre visible */}
+      <div className="px-5 py-4 border-b border-[#ECECEC]">
+        <p className="text-[#1B212C] text-sm leading-relaxed">{t.resumen}</p>
+        <div className="flex items-center gap-2 mt-2">
+          <span className="text-xs px-2 py-0.5 bg-gray-100 text-[#8090A6] rounded border border-[#ECECEC]">
+            ⚖️ {t.estado}
+          </span>
+        </div>
+      </div>
+
       {/* Detalle expandido */}
       {expanded && (
-        <div className="border-t border-current/20 p-5 space-y-6 bg-black/20">
+        <div className={`${colors.accent} px-5 py-5 space-y-6`}>
+
           {/* Flujo de dinero */}
-          <div className="space-y-2">
-            <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+          <div className="space-y-3">
+            <h4 className="text-xs font-black text-[#213E76] uppercase tracking-widest border-b border-[#ECECEC] pb-2">
               📊 Flujo del Dinero
             </h4>
-            <div className="bg-black/30 rounded-lg p-4">
+            <div className="bg-white rounded border border-[#ECECEC] p-4">
               {t.flujo.map((f, i) => (
                 <FlujoStep key={i} {...f} idx={i} />
               ))}
@@ -203,12 +208,12 @@ function TarjetaTeoria({ t, expanded, onToggle }: { t: typeof TEORIAS[0]; expand
 
           {/* Involucrados */}
           <div className="space-y-2">
-            <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+            <h4 className="text-xs font-black text-[#213E76] uppercase tracking-widest border-b border-[#ECECEC] pb-2">
               👤 Involucrados Documentados
             </h4>
             <div className="flex flex-wrap gap-2">
               {t.involucrados.map((p) => (
-                <span key={p} className="text-xs px-2 py-1 bg-gray-800 border border-gray-700 rounded text-gray-300">
+                <span key={p} className="text-xs px-2.5 py-1 bg-white border border-[#ECECEC] rounded-full text-[#1B212C] font-medium">
                   {p}
                 </span>
               ))}
@@ -216,11 +221,11 @@ function TarjetaTeoria({ t, expanded, onToggle }: { t: typeof TEORIAS[0]; expand
           </div>
 
           {/* Estado legal */}
-          <div className="flex items-start gap-2 bg-black/20 rounded-lg p-3">
-            <span className="text-lg">⚖️</span>
+          <div className="flex items-start gap-3 bg-white rounded border border-[#ECECEC] p-4">
+            <span className="text-xl">⚖️</span>
             <div>
-              <p className="text-xs text-gray-500 font-medium">Estado Legal</p>
-              <p className="text-gray-300 text-sm">{t.estado}</p>
+              <p className="text-xs text-[#8090A6] font-semibold uppercase tracking-wide">Estado Legal</p>
+              <p className="text-[#1B212C] text-sm font-medium mt-0.5">{t.estado}</p>
             </div>
           </div>
 
@@ -229,21 +234,20 @@ function TarjetaTeoria({ t, expanded, onToggle }: { t: typeof TEORIAS[0]; expand
             href={t.fuente}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-xs text-blue-400 hover:underline"
+            className="inline-flex items-center gap-1 text-xs text-[#213E76] hover:underline font-medium"
           >
-            🔗 Fuente: {t.fuente}
+            🔗 Ver fuente original
           </a>
         </div>
       )}
-    </div>
+    </article>
   );
 }
 
-// ─── Mapa de nodos en vivo (simplificado en SVG) ─────────────────────────────
+// ─── Mini grafo en SVG ───────────────────────────────────────────────────────
 function MiniGrafo({ nodos, aristas }: { nodos: Nodo[]; aristas: Arista[] }) {
   if (nodos.length === 0) return null;
 
-  // Layout circular simple
   const W = 600, H = 320, CX = W / 2, CY = H / 2, R = 120;
   const positions: Record<string, { x: number; y: number }> = {};
   nodos.slice(0, 10).forEach((n, i) => {
@@ -252,32 +256,30 @@ function MiniGrafo({ nodos, aristas }: { nodos: Nodo[]; aristas: Arista[] }) {
   });
 
   const riskColor = (score: number) =>
-    score > 0.7 ? "#ef4444" : score > 0.5 ? "#f97316" : score > 0.3 ? "#eab308" : "#22c55e";
+    score > 0.7 ? "#E00911" : score > 0.5 ? "#f97316" : score > 0.3 ? "#eab308" : "#22c55e";
 
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-      <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
-        <span className="text-sm font-medium text-gray-300">Red de Entidades Detectadas</span>
-        <Link href="/grafo/" className="text-blue-400 text-xs hover:underline">
-          Ver grafo interactivo completo →
+    <div className="bg-white border border-[#ECECEC] rounded overflow-hidden">
+      <div className="bg-[#213E76] text-white px-4 py-2 flex items-center justify-between">
+        <span className="text-sm font-bold">Red de Entidades Detectadas</span>
+        <Link href="/pared/" className="text-white/80 text-xs hover:text-white">
+          Ver mapa completo →
         </Link>
       </div>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxHeight: "320px" }}>
-        {/* Aristas */}
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full bg-gray-50" style={{ maxHeight: "320px" }}>
         {aristas.slice(0, 20).map((a) => {
           const s = positions[a.source_node_id];
-          const t = positions[a.target_node_id];
-          if (!s || !t) return null;
+          const tPos = positions[a.target_node_id];
+          if (!s || !tPos) return null;
           return (
             <line
               key={a.id}
-              x1={s.x} y1={s.y} x2={t.x} y2={t.y}
-              stroke="#374151" strokeWidth={Math.max(1, a.weight * 2)}
+              x1={s.x} y1={s.y} x2={tPos.x} y2={tPos.y}
+              stroke="#ECECEC" strokeWidth={Math.max(1, a.weight * 2)}
               strokeDasharray={a.relation_type === "conflicto_interes" ? "4 2" : undefined}
             />
           );
         })}
-        {/* Nodos */}
         {nodos.slice(0, 10).map((n) => {
           const pos = positions[n.id];
           if (!pos) return null;
@@ -285,21 +287,16 @@ function MiniGrafo({ nodos, aristas }: { nodos: Nodo[]; aristas: Arista[] }) {
           const r = 8 + n.risk_score * 12;
           return (
             <g key={n.id}>
-              <circle cx={pos.x} cy={pos.y} r={r} fill={col} fillOpacity={0.25} stroke={col} strokeWidth={2} />
-              <text
-                x={pos.x} y={pos.y + r + 12}
-                textAnchor="middle"
-                fontSize={9}
-                fill="#9ca3af"
-              >
+              <circle cx={pos.x} cy={pos.y} r={r} fill={col} fillOpacity={0.2} stroke={col} strokeWidth={2} />
+              <text x={pos.x} y={pos.y + r + 12} textAnchor="middle" fontSize={9} fill="#8090A6">
                 {n.canonical_name.split(" ").slice(0, 2).join(" ")}
               </text>
             </g>
           );
         })}
       </svg>
-      <div className="px-4 py-2 border-t border-gray-800 flex gap-4 text-xs text-gray-600">
-        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> Riesgo alto</span>
+      <div className="px-4 py-2 border-t border-[#ECECEC] flex gap-4 text-xs text-[#8090A6]">
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#E00911] inline-block" /> Riesgo alto</span>
         <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500 inline-block" /> Riesgo medio</span>
         <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> Riesgo bajo</span>
       </div>
@@ -329,63 +326,71 @@ export default function RedCorrupcion() {
   }, []);
 
   return (
-    <div className="space-y-8 pb-12">
+    <div className="space-y-6 pb-12">
 
-      {/* Hero */}
-      <section className="relative rounded-2xl overflow-hidden border border-red-900/40 bg-gradient-to-br from-gray-900 via-gray-900 to-red-950/20 p-6 sm:p-10">
-        <div className="space-y-3 max-w-3xl">
-          <div className="flex items-center gap-2">
-            <span className="text-2xl">🕵️</span>
-            <span className="text-xs font-mono text-red-400 uppercase tracking-widest">Red de Corrupción — Análisis Profundo</span>
+      {/* ── Header de sección principal ─────────────────────────────────── */}
+      <header className="bg-white border border-[#ECECEC] rounded overflow-hidden">
+        <div className="bg-[#1B212C] text-white px-5 py-4">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-xl">🕵️</span>
+            <span className="text-xs font-mono text-[#E00911] uppercase tracking-widest">
+              Red de Corrupción — Análisis Profundo
+            </span>
           </div>
-          <h1 className="text-3xl sm:text-4xl font-bold text-white leading-tight">
-            Sigue el dinero.<br />
-            <span className="text-red-400">Encuentra al corrupto.</span>
+          <h1 className="text-2xl sm:text-3xl font-black leading-tight">
+            Sigue el dinero.{" "}
+            <span className="text-[#E00911]">Encuentra al corrupto.</span>
           </h1>
-          <p className="text-gray-400 leading-relaxed">
+          <p className="text-gray-400 text-sm leading-relaxed mt-2">
             Teorías documentadas de cómo fluye el dinero entre élites políticas y económicas en Chile.
             Basado en investigaciones de CIPER, ICIJ, Contraloría y Fiscalía.
           </p>
         </div>
-      </section>
+        <div className="px-5 py-2 border-t border-[#ECECEC] flex flex-wrap gap-4 text-xs text-[#8090A6]">
+          <span>{TEORIAS.length} casos documentados</span>
+          <span>·</span>
+          <span>Actualizado continuamente</span>
+        </div>
+      </header>
 
-      {/* Mini grafo en vivo */}
+      {/* ── Mini grafo en vivo ───────────────────────────────────────────── */}
       {!loading && (
         <MiniGrafo nodos={nodos} aristas={aristas} />
       )}
 
-      {/* Anomalías confirmadas por IA */}
+      {/* ── Anomalías confirmadas por IA ─────────────────────────────────── */}
       {anomalias.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">
+          <div className="bg-[#213E76] text-white text-xs font-black uppercase tracking-widest px-4 py-2 rounded">
             Casos confirmados por análisis IA
-          </h2>
-          <div className="space-y-2">
+          </div>
+          <div className="space-y-3">
             {anomalias.map((a) => (
-              <div key={a.id} className="bg-gray-900 border border-red-900/30 rounded-lg p-4 space-y-2">
+              <div key={a.id} className="bg-white border border-[#ECECEC] rounded p-4 space-y-2">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs font-mono text-red-400 uppercase px-2 py-0.5 bg-red-900/30 rounded border border-red-800">
+                  <span className="text-xs font-bold px-2 py-0.5 bg-[#E00911] text-white rounded uppercase">
                     {a.anomaly_type.replace(/_/g, " ")}
                   </span>
-                  <span className="text-xs text-gray-500">{Math.round(a.confidence * 100)}% confianza</span>
-                  <span className="text-xs text-green-400">{a.status}</span>
+                  <span className="text-xs text-[#8090A6]">{Math.round(a.confidence * 100)}% confianza</span>
+                  <span className="text-xs text-green-700 font-semibold">{a.status}</span>
                 </div>
-                <p className="text-gray-300 text-sm leading-relaxed">{a.description}</p>
+                <p className="text-[#1B212C] text-sm leading-relaxed">{a.description}</p>
               </div>
             ))}
           </div>
         </section>
       )}
 
-      {/* Teorías documentadas */}
-      <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">
-            Flujos documentados de corrupción
-          </h2>
-          <span className="text-xs text-gray-600">{TEORIAS.length} casos analizados</span>
+      {/* ── CASOS DOCUMENTADOS (sección principal) ──────────────────────── */}
+      <section className="space-y-4">
+        <div className="bg-[#213E76] text-white text-xs font-black uppercase tracking-widest px-4 py-2 rounded flex items-center justify-between">
+          <span>Flujos documentados de corrupción</span>
+          <span className="text-white/60">{TEORIAS.length} casos analizados</span>
         </div>
-        <div className="space-y-3">
+        <p className="text-xs text-[#8090A6] px-1">
+          Haz clic en cada caso para ver el análisis completo del flujo de dinero.
+        </p>
+        <div className="space-y-4">
           {TEORIAS.map((t) => (
             <TarjetaTeoria
               key={t.id}
@@ -397,18 +402,29 @@ export default function RedCorrupcion() {
         </div>
       </section>
 
-      {/* CTA */}
-      <section className="bg-gray-900 border border-gray-800 rounded-xl p-6 text-center space-y-3">
-        <p className="text-gray-400 text-sm">
-          El sistema IA detecta nuevas conexiones automáticamente cada 5 minutos analizando contratos, lobbies, prensa y redes sociales chilenas.
-        </p>
-        <div className="flex gap-3 justify-center flex-wrap">
-          <Link href="/grafo/" className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors">
-            🕸️ Grafo Interactivo
-          </Link>
-          <Link href="/radar/" className="px-4 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-200 rounded-lg text-sm font-medium transition-colors">
-            📡 Radar de Bots
-          </Link>
+      {/* ── CTA ──────────────────────────────────────────────────────────── */}
+      <section className="bg-white border border-[#ECECEC] rounded overflow-hidden">
+        <div className="bg-[#213E76] text-white text-xs font-black uppercase tracking-widest px-4 py-2">
+          Herramientas de investigación
+        </div>
+        <div className="p-5 text-center space-y-3">
+          <p className="text-[#8090A6] text-sm">
+            El sistema IA detecta nuevas conexiones automáticamente cada 5 minutos analizando contratos, lobbies, prensa y redes sociales chilenas.
+          </p>
+          <div className="flex gap-3 justify-center flex-wrap">
+            <Link
+              href="/pared/"
+              className="px-4 py-2 bg-[#213E76] hover:bg-blue-900 text-white rounded text-sm font-bold transition-colors"
+            >
+              🕸️ Mapa Interactivo
+            </Link>
+            <Link
+              href="/casos/"
+              className="px-4 py-2 bg-white hover:bg-gray-50 border border-[#ECECEC] text-[#1B212C] rounded text-sm font-medium transition-colors"
+            >
+              📋 Ver todos los casos
+            </Link>
+          </div>
         </div>
       </section>
 
