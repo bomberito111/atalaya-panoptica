@@ -184,6 +184,21 @@ REDDIT_KEYWORDS = [
 
 # Queries prioritarias para Google News RSS (las más importantes)
 GOOGLE_NEWS_PRIORITY_QUERIES = [
+    # Casos actuales Chile 2024-2025
+    "La Vecina Chile corrupción alcalde",
+    "incendios Valparaíso investigación responsables",
+    "tierras raras litio Chile contratos",
+    "caso Hermosilla audios corrupción Chile",
+    "caso convenios Chile gobierno",
+    "caso Democracia Viva Chile",
+    "cartel farmacias Chile condena",
+    "caso SQM financiamiento político",
+    "Fondart irregularidades Chile",
+    "Contraloría irregular Chile 2025",
+    "colusión empresas Chile 2025",
+    "soborno licitación Chile",
+    "narco política Chile 2025",
+    "tráfico influencias Chile ministerio",
     "corrupción Chile gobierno 2025",
     "caso Convenios Chile Democracia Viva",
     "licitación irregular Chile ministerio",
@@ -237,7 +252,9 @@ def search_duckduckgo(query: str, max_results: int = 10) -> list[dict]:
 def search_bing_news_rss(query: str, max_results: int = 10) -> list[dict]:
     """Búsqueda Bing News RSS (sin API key, excelente cobertura de noticias chilenas)."""
     try:
-        encoded_query = quote_plus(query)
+        # Add date filter to focus on recent news
+        dated_query = query + " after:2024-01-01"
+        encoded_query = quote_plus(dated_query)
         rss_url = (
             f"https://www.bing.com/news/search"
             f"?q={encoded_query}&format=rss&cc=CL&mkt=es-CL&setlang=es-CL"
@@ -271,7 +288,9 @@ def search_google_news_rss(query: str, max_results: int = 10) -> list[dict]:
     Retorna lista de {title, url, snippet, published}.
     """
     try:
-        encoded_query = quote_plus(query)
+        # Add date filter to focus on recent news
+        dated_query = query + " after:2024-01-01"
+        encoded_query = quote_plus(dated_query)
         rss_url = (
             f"https://news.google.com/rss/search"
             f"?q={encoded_query}&hl=es-CL&gl=CL&ceid=CL:es"

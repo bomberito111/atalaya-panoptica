@@ -132,24 +132,43 @@ def select_one(
 def claim_pending_item() -> Optional[dict]:
     """
     Toma el siguiente ítem pendiente de la cola y lo marca como 'processing'.
-    Operación atómica para evitar race conditions entre ejecuciones paralelas.
+    Prioriza ítems recientes (últimas 72h) y de mayor prioridad.
     """
-    # Obtenemos el ítem con mayor prioridad y más antiguo
-    item = select_one(
-        table="investigation_queue",
-        filters={"status": "pending"},
-        order_by="priority",
-        ascending=True,
-    )
+    client = db()
+    # First try: items from last 72 hours, highest priority first
+    import datetime
+    cutoff = (datetime.datetime.utcnow() - datetime.timedelta(hours=72)).isoformat()
+
+    resp = client.table("investigation_queue")\
+        .select("*")\
+        .eq("status", "pending")\
+        .gte("created_at", cutoff)\
+        .order("priority", desc=False)\
+        .order("created_at", desc=True)\
+        .limit(1)\
+        .execute()
+
+    item = resp.data[0] if resp.data else None
+
+    # Fallback: any pending item if no recent ones
+    if not item:
+        resp2 = client.table("investigation_queue")\
+            .select("*")\
+            .eq("status", "pending")\
+            .order("priority", desc=False)\
+            .order("created_at", desc=True)\
+            .limit(1)\
+            .execute()
+        item = resp2.data[0] if resp2.data else None
 
     if not item:
         return None
 
-    # Marcamos como processing
+    # Marcamos como processing (CAS)
     updated = update(
         table="investigation_queue",
         data={"status": "processing"},
-        match={"id": item["id"], "status": "pending"},  # CAS: solo si sigue en pending
+        match={"id": item["id"], "status": "pending"},
     )
 
     return updated[0] if updated else None

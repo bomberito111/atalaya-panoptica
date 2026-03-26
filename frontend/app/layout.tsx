@@ -23,6 +23,7 @@ export const metadata: Metadata = {
 
 const NAV_LINKS = [
   { href: "/", label: "Inicio" },
+  { href: "/ayudanos/", label: "🚨 Denuncia" },
   { href: "/red-corrupcion/", label: "🕵️ Red" },
   { href: "/grafo/", label: "🕸️ Grafo" },
   { href: "/pared/", label: "🧵 Pared" },
@@ -59,7 +60,11 @@ export default function RootLayout({
           {children}
         </main>
         <footer className="border-t border-gray-800 py-6 text-center text-gray-600 text-xs">
-          ATALAYA PANÓPTICA — Sistema de IA Anticorrupción Chile 🇨🇱 — Datos de fuentes públicas del Estado
+          ATALAYA PANÓPTICA — Sistema de IA Anticorrupción Chile 🇨🇱 — Datos de fuentes públicas del Estado{" "}
+          |{" "}
+          <a href="/ayudanos/" className="hover:text-gray-400 underline underline-offset-2">
+            Envía una denuncia
+          </a>
         </footer>
       </body>
     </html>

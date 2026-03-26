@@ -110,7 +110,7 @@ export async function getAnomalies(minConfidence = 0.6): Promise<Anomaly[]> {
     .select("*")
     .gte("confidence", minConfidence)
     .eq("status", "activa")
-    .order("confidence", { ascending: false })
+    .order("created_at", { ascending: false })  // Más recientes primero
     .limit(50);
 
   if (error) console.error("Error fetching anomalies:", error);
