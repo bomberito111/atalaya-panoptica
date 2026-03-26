@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 
 interface Promesa {
@@ -24,12 +25,15 @@ interface Node {
 
 type VerdictKey = "cumplida" | "incumplida" | "parcial" | "pendiente" | "sin_datos";
 
-const VERDICT_CONFIG: Record<VerdictKey, { label: string; icon: string; color: string; bg: string; border: string }> = {
-  cumplida:   { label: "Cumplida",    icon: "✅", color: "text-green-400",  bg: "bg-green-950",  border: "border-green-800" },
-  incumplida: { label: "Incumplida",  icon: "❌", color: "text-red-400",    bg: "bg-red-950",    border: "border-red-800" },
-  parcial:    { label: "Parcialmente",icon: "⚠️", color: "text-yellow-400", bg: "bg-yellow-950", border: "border-yellow-800" },
-  pendiente:  { label: "Pendiente",   icon: "⏳", color: "text-blue-400",   bg: "bg-blue-950",   border: "border-blue-800" },
-  sin_datos:  { label: "Sin datos",   icon: "❓", color: "text-gray-400",   bg: "bg-gray-900",   border: "border-gray-800" },
+const VERDICT_CONFIG: Record<VerdictKey, {
+  label: string; icon: string;
+  badgeClass: string; headerClass: string; expandColor: string;
+}> = {
+  cumplida:   { label: "Cumplida",      icon: "✅", badgeClass: "bg-green-50 text-green-700 border border-green-200",    headerClass: "bg-green-50 border-b border-green-200",    expandColor: "text-green-700" },
+  incumplida: { label: "Incumplida",    icon: "❌", badgeClass: "bg-red-50 text-red-700 border border-red-200",          headerClass: "bg-red-50 border-b border-red-200",        expandColor: "text-red-700" },
+  parcial:    { label: "Parcialmente",  icon: "⚠️", badgeClass: "bg-yellow-50 text-yellow-700 border border-yellow-200", headerClass: "bg-yellow-50 border-b border-yellow-200",  expandColor: "text-yellow-700" },
+  pendiente:  { label: "Pendiente",     icon: "⏳", badgeClass: "bg-blue-50 text-[#213E76] border border-blue-200",      headerClass: "bg-blue-50 border-b border-blue-200",      expandColor: "text-[#213E76]" },
+  sin_datos:  { label: "Sin datos",     icon: "❓", badgeClass: "bg-gray-50 text-[#8090A6] border border-[#ECECEC]",     headerClass: "bg-gray-50 border-b border-[#ECECEC]",     expandColor: "text-[#8090A6]" },
 };
 
 function getVerdict(v: string | null) {
@@ -42,9 +46,6 @@ function formatDate(s: string | null) {
     return new Date(s).toLocaleDateString("es-CL", { day: "numeric", month: "long", year: "numeric" });
   } catch { return s; }
 }
-
-// ── Promesas hardcoded (respaldo) ─────────────────────────────────────────────
-// Usadas cuando la base de datos está vacía — basadas en hechos verificables
 
 const PROMESAS_HARDCODED: (Promesa & { politician_name?: string })[] = [
   {
@@ -122,7 +123,7 @@ const PROMESAS_HARDCODED: (Promesa & { politician_name?: string })[] = [
 ];
 
 const FILTROS = [
-  { key: "todos",      label: "📋 Todas" },
+  { key: "todos",      label: "Todas" },
   { key: "cumplida",   label: "✅ Cumplidas" },
   { key: "incumplida", label: "❌ Incumplidas" },
   { key: "parcial",    label: "⚠️ Parciales" },
@@ -138,14 +139,12 @@ export default function PromesasPage() {
 
   useEffect(() => {
     async function load() {
-      // Cargar promesas de DB
       const { data: pData } = await supabase
         .from("promises_vs_reality")
         .select("*")
         .order("verified_at", { ascending: false })
         .limit(100);
 
-      // Cargar nodos para nombres de políticos
       const { data: nData } = await supabase
         .from("nodes")
         .select("id, canonical_name, node_type, risk_score")
@@ -156,7 +155,6 @@ export default function PromesasPage() {
       for (const n of nData || []) nodeMap[n.id] = n;
       setNodes(nodeMap);
 
-      // Si no hay datos en DB, usar hardcoded
       if (!pData || pData.length === 0) {
         setPromesas(PROMESAS_HARDCODED);
       } else {
@@ -167,7 +165,6 @@ export default function PromesasPage() {
     load();
   }, []);
 
-  // Estadísticas
   const counts = { cumplida: 0, incumplida: 0, parcial: 0, pendiente: 0, sin_datos: 0 };
   for (const p of promesas) counts[(p.verdict as VerdictKey) ?? "sin_datos"]++;
 
@@ -182,41 +179,43 @@ export default function PromesasPage() {
   return (
     <div className="max-w-3xl mx-auto space-y-6 pb-16">
 
-      {/* Cabecera estilo diario */}
-      <header className="border-b-2 border-white pb-4 pt-2">
-        <p className="text-xs text-gray-500 uppercase tracking-widest mb-1">
+      {/* Section header */}
+      <div className="bg-[#213E76] text-white px-4 py-2 font-bold text-sm uppercase tracking-wide">
+        📋 Promesas vs. Realidad
+      </div>
+
+      {/* Date + subtitle */}
+      <div>
+        <p className="text-xs text-[#8090A6] uppercase tracking-widest mb-1">
           {new Date().toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
         </p>
-        <h1 className="text-3xl font-black text-white tracking-tight leading-none">
-          📋 Promesas vs. Realidad
-        </h1>
-        <p className="text-gray-400 text-sm mt-1">
+        <p className="text-[#8090A6] text-sm">
           ¿Qué prometieron los políticos? ¿Qué cumplieron? Tú decides.
         </p>
-      </header>
+      </div>
 
-      {/* Marcador global */}
+      {/* Global scoreboard */}
       {!loading && promesas.length > 0 && (
-        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+        <div className="bg-white border border-[#ECECEC] rounded-lg p-5 shadow-sm">
           <div className="flex items-center justify-between mb-3">
-            <p className="text-sm text-gray-400 font-medium">{promesas.length} promesas verificadas</p>
-            <p className="text-2xl font-black text-white">{pctCumplidas}% cumplidas</p>
+            <p className="text-sm text-[#8090A6] font-medium">{promesas.length} promesas verificadas</p>
+            <p className="text-2xl font-black text-[#1B212C]">{pctCumplidas}% cumplidas</p>
           </div>
-          <div className="h-3 bg-gray-800 rounded-full overflow-hidden flex gap-0.5">
+          <div className="h-3 bg-[#F5F5F5] rounded-full overflow-hidden flex gap-0.5">
             <div className="bg-green-600 h-full transition-all" style={{ width: `${(counts.cumplida / promesas.length) * 100}%` }} />
-            <div className="bg-yellow-600 h-full transition-all" style={{ width: `${(counts.parcial / promesas.length) * 100}%` }} />
+            <div className="bg-yellow-500 h-full transition-all" style={{ width: `${(counts.parcial / promesas.length) * 100}%` }} />
             <div className="bg-red-600 h-full transition-all" style={{ width: `${(counts.incumplida / promesas.length) * 100}%` }} />
           </div>
           <div className="flex flex-wrap gap-3 mt-3 text-xs">
-            <span className="text-green-400">✅ {counts.cumplida} cumplidas</span>
-            <span className="text-yellow-400">⚠️ {counts.parcial} parciales</span>
-            <span className="text-red-400">❌ {counts.incumplida} incumplidas</span>
-            <span className="text-blue-400">⏳ {counts.pendiente} pendientes</span>
+            <span className="text-green-700">✅ {counts.cumplida} cumplidas</span>
+            <span className="text-yellow-700">⚠️ {counts.parcial} parciales</span>
+            <span className="text-red-700">❌ {counts.incumplida} incumplidas</span>
+            <span className="text-[#213E76]">⏳ {counts.pendiente} pendientes</span>
           </div>
         </div>
       )}
 
-      {/* Filtros */}
+      {/* Filters */}
       <div className="flex flex-wrap gap-2">
         {FILTROS.map(f => (
           <button
@@ -224,8 +223,8 @@ export default function PromesasPage() {
             onClick={() => setFiltro(f.key)}
             className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors border ${
               filtro === f.key
-                ? "bg-white text-gray-900 border-white"
-                : "bg-gray-900 text-gray-400 border-gray-700 hover:border-gray-500 hover:text-gray-200"
+                ? "bg-[#213E76] text-white border-[#213E76]"
+                : "bg-white text-[#8090A6] border-[#ECECEC] hover:border-[#213E76] hover:text-[#213E76]"
             }`}
           >
             {f.label}
@@ -233,15 +232,15 @@ export default function PromesasPage() {
         ))}
       </div>
 
-      {/* Lista */}
+      {/* List */}
       {loading ? (
         <div className="space-y-4">
           {[1, 2, 3].map(i => (
-            <div key={i} className="h-32 bg-gray-900 rounded-xl animate-pulse border border-gray-800" />
+            <div key={i} className="h-32 bg-[#F5F5F5] rounded-lg animate-pulse border border-[#ECECEC]" />
           ))}
         </div>
       ) : filtradas.length === 0 ? (
-        <div className="text-center py-16 text-gray-600">
+        <div className="text-center py-16 text-[#8090A6] bg-white border border-[#ECECEC] rounded-lg">
           <p className="text-4xl mb-3">🔍</p>
           <p>Sin promesas con ese filtro</p>
         </div>
@@ -252,51 +251,54 @@ export default function PromesasPage() {
             const name = p.politician_name || nodes[p.politician_id]?.canonical_name || "Político";
             const isOpen = expanded === p.id;
             return (
-              <article key={p.id} className={`rounded-xl border ${v.border} bg-gray-950 overflow-hidden`}>
-                {/* Franja veredicto */}
-                <div className={`px-4 py-2 flex items-center justify-between gap-2 ${v.bg} border-b ${v.border}`}>
-                  <span className={`text-xs font-bold uppercase tracking-wider ${v.color}`}>
+              <article key={p.id} className="bg-white border border-[#ECECEC] rounded-lg shadow-sm overflow-hidden">
+                {/* Verdict header */}
+                <div className={`px-4 py-2 flex items-center justify-between gap-2 ${v.headerClass}`}>
+                  <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${v.badgeClass}`}>
                     {v.icon} {v.label}
                   </span>
-                  <span className="text-xs text-gray-500">
+                  <span className="text-xs text-[#8090A6]">
                     {formatDate(p.promise_date) || "Fecha desconocida"}
                   </span>
                 </div>
 
-                {/* Cuerpo */}
+                {/* Body */}
                 <div className="px-4 py-3 space-y-2">
                   <div className="flex items-start gap-2">
-                    <span className="text-xs bg-gray-800 text-gray-400 px-2 py-0.5 rounded-full flex-shrink-0">{name}</span>
+                    <span className="text-xs bg-[#F5F5F5] text-[#8090A6] border border-[#ECECEC] px-2 py-0.5 rounded-full flex-shrink-0">
+                      {name}
+                    </span>
                   </div>
 
-                  {/* Promesa */}
                   <div className="space-y-1">
-                    <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Lo que prometió</p>
-                    <p className="text-white text-sm font-medium leading-snug">"{p.promise_text}"</p>
+                    <p className="text-xs text-[#8090A6] uppercase tracking-wider font-semibold">Lo que prometió</p>
+                    <p className="text-[#1B212C] text-sm font-medium leading-snug">&ldquo;{p.promise_text}&rdquo;</p>
                     {p.promise_source && (
                       <a href={p.promise_source} target="_blank" rel="noopener noreferrer"
-                        className="text-xs text-blue-400 hover:underline">🔗 Fuente de la promesa</a>
+                        className="text-xs text-[#213E76] hover:underline">
+                        🔗 Fuente de la promesa
+                      </a>
                     )}
                   </div>
 
-                  {/* Botón expandir */}
                   {p.reality_text && (
                     <button
                       onClick={() => setExpanded(isOpen ? null : p.id)}
-                      className={`text-xs font-medium transition-colors ${v.color} hover:opacity-80`}
+                      className={`text-xs font-semibold transition-colors ${v.expandColor} hover:opacity-80`}
                     >
                       {isOpen ? "▲ Ocultar realidad" : "▼ Ver qué pasó en la realidad"}
                     </button>
                   )}
 
-                  {/* Realidad */}
                   {isOpen && p.reality_text && (
-                    <div className="space-y-1 pt-1 border-t border-gray-800">
-                      <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Lo que ocurrió en la realidad</p>
-                      <p className="text-gray-300 text-sm leading-relaxed">{p.reality_text}</p>
+                    <div className="space-y-1 pt-2 border-t border-[#ECECEC]">
+                      <p className="text-xs text-[#8090A6] uppercase tracking-wider font-semibold">Lo que ocurrió en la realidad</p>
+                      <p className="text-[#1B212C] text-sm leading-relaxed">{p.reality_text}</p>
                       {p.reality_source && (
                         <a href={p.reality_source} target="_blank" rel="noopener noreferrer"
-                          className="text-xs text-blue-400 hover:underline">🔗 Fuente de verificación</a>
+                          className="text-xs text-[#213E76] hover:underline">
+                          🔗 Fuente de verificación
+                        </a>
                       )}
                     </div>
                   )}
@@ -308,12 +310,15 @@ export default function PromesasPage() {
       )}
 
       {/* CTA */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 text-center space-y-2">
-        <p className="text-white font-bold">¿Conoces una promesa incumplida?</p>
-        <p className="text-gray-500 text-sm">Envíala con la fuente y la agregaremos al registro.</p>
-        <a href="/ayudanos/" className="inline-block px-5 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg text-sm font-bold transition-colors">
+      <div className="bg-white border border-[#ECECEC] rounded-lg p-5 text-center space-y-2 shadow-sm">
+        <p className="text-[#1B212C] font-bold">¿Conoces una promesa incumplida?</p>
+        <p className="text-[#8090A6] text-sm">Envíala con la fuente y la agregaremos al registro.</p>
+        <Link
+          href="/ayudanos/"
+          className="inline-block px-5 py-2 bg-[#E00911] hover:bg-red-700 text-white rounded-lg text-sm font-bold transition-colors"
+        >
           📢 Reportar promesa incumplida
-        </a>
+        </Link>
       </div>
     </div>
   );

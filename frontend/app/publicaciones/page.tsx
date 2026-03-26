@@ -4,8 +4,6 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase, type Anomaly } from "@/lib/supabase";
 
-// ─── Tipos ────────────────────────────────────────────────────────────────────
-
 interface ViralPost {
   id: string;
   content_type: string;
@@ -22,14 +20,12 @@ interface PostWithAnomaly extends ViralPost {
   anomaly?: Anomaly;
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-const CONTENT_TYPE_CONFIG: Record<string, { icon: string; label: string; color: string }> = {
-  twitter_thread: { icon: "🐦", label: "Twitter Thread", color: "bg-sky-900/40 border-sky-700 text-sky-300" },
-  tiktok: { icon: "📹", label: "TikTok", color: "bg-pink-900/40 border-pink-700 text-pink-300" },
-  instagram: { icon: "📸", label: "Instagram", color: "bg-purple-900/40 border-purple-700 text-purple-300" },
-  comunicado: { icon: "📰", label: "Comunicado", color: "bg-yellow-900/40 border-yellow-700 text-yellow-300" },
-  tweet: { icon: "🐦", label: "Twitter Thread", color: "bg-sky-900/40 border-sky-700 text-sky-300" },
+const CONTENT_TYPE_CONFIG: Record<string, { icon: string; label: string; badgeClass: string }> = {
+  twitter_thread: { icon: "🐦", label: "Twitter Thread", badgeClass: "bg-blue-50 text-[#213E76] border border-blue-200" },
+  tiktok:         { icon: "📹", label: "TikTok",         badgeClass: "bg-red-50 text-red-700 border border-red-200" },
+  instagram:      { icon: "📸", label: "Instagram",      badgeClass: "bg-yellow-50 text-yellow-700 border border-yellow-200" },
+  comunicado:     { icon: "📰", label: "Comunicado",     badgeClass: "bg-gray-50 text-[#8090A6] border border-[#ECECEC]" },
+  tweet:          { icon: "🐦", label: "Tweet",          badgeClass: "bg-blue-50 text-[#213E76] border border-blue-200" },
 };
 
 function getContentConfig(type: string) {
@@ -37,7 +33,7 @@ function getContentConfig(type: string) {
     CONTENT_TYPE_CONFIG[type.toLowerCase()] ?? {
       icon: "📄",
       label: type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
-      color: "bg-gray-800 border-gray-700 text-gray-400",
+      badgeClass: "bg-gray-50 text-[#8090A6] border border-[#ECECEC]",
     }
   );
 }
@@ -55,8 +51,6 @@ function timeAgo(dateStr: string): string {
   if (months < 12) return `hace ${months} mes${months > 1 ? "es" : ""}`;
   return `hace ${Math.floor(months / 12)} año${Math.floor(months / 12) > 1 ? "s" : ""}`;
 }
-
-// ─── Tarjeta de publicación ───────────────────────────────────────────────────
 
 function PostCard({ post }: { post: PostWithAnomaly }) {
   const [expanded, setExpanded] = useState(false);
@@ -83,54 +77,54 @@ function PostCard({ post }: { post: PostWithAnomaly }) {
   const confidencePct = Math.round(post.confidence * 100);
 
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+    <div className="bg-white border border-[#ECECEC] rounded-lg shadow-sm overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-gray-800">
+      <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-[#ECECEC]">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className={`text-xs font-semibold px-2.5 py-1 border rounded-full ${cfg.color}`}>
+          <span className={`text-xs font-semibold px-2.5 py-1 border rounded-full ${cfg.badgeClass}`}>
             {cfg.icon} {cfg.label}
           </span>
           {post.published ? (
-            <span className="text-xs font-medium px-2.5 py-1 bg-green-900/40 border border-green-700 text-green-300 rounded-full">
+            <span className="text-xs font-semibold px-2.5 py-1 bg-green-50 border border-green-200 text-green-700 rounded-full">
               ✅ Publicado
             </span>
           ) : (
-            <span className="text-xs font-medium px-2.5 py-1 bg-orange-900/40 border border-orange-700 text-orange-300 rounded-full">
+            <span className="text-xs font-semibold px-2.5 py-1 bg-yellow-50 border border-yellow-200 text-yellow-700 rounded-full">
               ⏳ Pendiente de publicación
             </span>
           )}
-          <span className={`text-xs font-medium px-2 py-0.5 rounded ${
+          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
             post.confidence >= 0.9
-              ? "text-red-400 bg-red-900/30"
+              ? "bg-red-50 text-red-700 border border-red-200"
               : post.confidence >= 0.85
-              ? "text-orange-400 bg-orange-900/30"
-              : "text-yellow-400 bg-yellow-900/30"
+              ? "bg-orange-50 text-orange-700 border border-orange-200"
+              : "bg-yellow-50 text-yellow-700 border border-yellow-200"
           }`}>
             {confidencePct}% confianza
           </span>
         </div>
-        <span className="text-xs text-gray-600 flex-shrink-0">{timeAgo(post.created_at)}</span>
+        <span className="text-xs text-[#8090A6] flex-shrink-0">{timeAgo(post.created_at)}</span>
       </div>
 
       {/* Tweet-style content */}
-      <div className="px-5 py-4 space-y-3">
-        <div className="bg-gray-950 border border-gray-800 rounded-xl p-4">
+      <div className="px-4 py-4 space-y-3">
+        <div className="bg-[#F5F5F5] border border-[#ECECEC] rounded-lg p-4">
           <div className="flex items-start gap-3">
-            <div className="w-9 h-9 rounded-full bg-gray-800 flex items-center justify-center text-sm flex-shrink-0">
+            <div className="w-9 h-9 rounded-full bg-[#213E76] flex items-center justify-center text-sm flex-shrink-0 text-white">
               🕵️
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
-                <span className="text-sm font-semibold text-white">Atalaya Panóptica</span>
-                <span className="text-xs text-gray-600">@atalaya_cl</span>
+                <span className="text-sm font-semibold text-[#1B212C]">Atalaya Panóptica</span>
+                <span className="text-xs text-[#8090A6]">@atalaya_cl</span>
               </div>
-              <p className="text-gray-200 text-sm leading-relaxed font-mono whitespace-pre-wrap break-words">
+              <p className="text-[#1B212C] text-sm leading-relaxed font-mono whitespace-pre-wrap break-words">
                 {displayText}
               </p>
               {isTruncated && (
                 <button
                   onClick={() => setExpanded(!expanded)}
-                  className="text-xs text-blue-400 hover:underline mt-2"
+                  className="text-xs text-[#213E76] hover:underline mt-2 font-semibold"
                 >
                   {expanded ? "Ver menos" : "Ver más"}
                 </button>
@@ -141,20 +135,20 @@ function PostCard({ post }: { post: PostWithAnomaly }) {
 
         {/* Anomaly link */}
         {post.trigger_anomaly && (
-          <div className="flex items-center gap-2 text-xs text-gray-500 bg-gray-800/50 rounded-lg px-3 py-2">
-            <span className="text-orange-400">🔗</span>
+          <div className="flex items-center gap-2 text-xs text-[#8090A6] bg-[#F5F5F5] border border-[#ECECEC] rounded-lg px-3 py-2">
+            <span className="text-[#E00911]">🔗</span>
             <span>Generado a partir de anomalía</span>
-            <span className="font-mono text-gray-600 truncate">{post.trigger_anomaly}</span>
+            <span className="font-mono text-[#8090A6] truncate">{post.trigger_anomaly}</span>
           </div>
         )}
 
-        {/* Anomaly details if fetched */}
+        {/* Anomaly details */}
         {post.anomaly && (
-          <div className="bg-red-950/20 border border-red-900/40 rounded-lg px-3 py-2 space-y-1">
-            <p className="text-xs text-red-400 font-semibold uppercase tracking-wide">
+          <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 space-y-1">
+            <p className="text-xs text-red-700 font-semibold uppercase tracking-wide">
               Anomalía: {post.anomaly.anomaly_type.replace(/_/g, " ")}
             </p>
-            <p className="text-xs text-gray-400 leading-relaxed line-clamp-2">
+            <p className="text-xs text-red-800 leading-relaxed line-clamp-2">
               {post.anomaly.description}
             </p>
           </div>
@@ -166,25 +160,25 @@ function PostCard({ post }: { post: PostWithAnomaly }) {
             href={post.platform_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-xs text-blue-400 hover:underline"
+            className="inline-flex items-center gap-1 text-xs text-[#213E76] hover:underline font-semibold"
           >
             🐦 Ver en Twitter/X
           </a>
         )}
       </div>
 
-      {/* Footer actions */}
-      <div className="flex items-center justify-between px-5 py-3 border-t border-gray-800 bg-gray-950/30">
-        <div className="flex items-center gap-1 text-xs text-gray-600">
+      {/* Footer */}
+      <div className="flex items-center justify-between px-4 py-3 border-t border-[#ECECEC] bg-[#F5F5F5]">
+        <div className="flex items-center gap-1 text-xs text-[#8090A6]">
           <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
           Generado por IA
         </div>
         <button
           onClick={handleCopy}
-          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
             copied
-              ? "bg-green-900/60 border border-green-700 text-green-300"
-              : "bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300"
+              ? "bg-green-50 border-green-200 text-green-700"
+              : "bg-white hover:bg-[#F5F5F5] border-[#ECECEC] text-[#1B212C]"
           }`}
         >
           {copied ? "✅ Copiado" : "📋 Copiar texto"}
@@ -194,43 +188,39 @@ function PostCard({ post }: { post: PostWithAnomaly }) {
   );
 }
 
-// ─── Empty state ──────────────────────────────────────────────────────────────
-
 function EmptyState() {
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-2xl p-8 sm:p-12 text-center space-y-6">
+    <div className="bg-white border border-[#ECECEC] rounded-lg p-8 sm:p-12 text-center space-y-6 shadow-sm">
       <div className="text-6xl">🤖</div>
       <div className="space-y-2">
-        <h3 className="text-xl font-bold text-white">El sistema está trabajando</h3>
-        <p className="text-gray-400 max-w-md mx-auto leading-relaxed text-sm">
+        <h3 className="text-xl font-bold text-[#1B212C]">El sistema está trabajando</h3>
+        <p className="text-[#8090A6] max-w-md mx-auto leading-relaxed text-sm">
           La IA genera publicaciones automáticamente cuando detecta anomalías con{" "}
-          <span className="text-yellow-400 font-semibold">≥85% de confianza</span>. Aparecerán aquí
+          <span className="text-[#E00911] font-semibold">≥85% de confianza</span>. Aparecerán aquí
           antes de ser publicadas en Twitter/X.
         </p>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-lg mx-auto">
-        <div className="bg-gray-800/60 rounded-xl p-4 space-y-1">
+        <div className="bg-[#F5F5F5] border border-[#ECECEC] rounded-lg p-4 space-y-1">
           <div className="text-2xl">🔍</div>
-          <p className="text-xs text-gray-500">El radar monitorea licitaciones, lobbies y contratos</p>
+          <p className="text-xs text-[#8090A6]">El radar monitorea licitaciones, lobbies y contratos</p>
         </div>
-        <div className="bg-gray-800/60 rounded-xl p-4 space-y-1">
+        <div className="bg-[#F5F5F5] border border-[#ECECEC] rounded-lg p-4 space-y-1">
           <div className="text-2xl">⚡</div>
-          <p className="text-xs text-gray-500">Cuando la confianza supera 85%, se genera un post</p>
+          <p className="text-xs text-[#8090A6]">Cuando la confianza supera 85%, se genera un post</p>
         </div>
-        <div className="bg-gray-800/60 rounded-xl p-4 space-y-1">
+        <div className="bg-[#F5F5F5] border border-[#ECECEC] rounded-lg p-4 space-y-1">
           <div className="text-2xl">📢</div>
-          <p className="text-xs text-gray-500">El post aparece aquí para revisión antes de publicar</p>
+          <p className="text-xs text-[#8090A6]">El post aparece aquí para revisión antes de publicar</p>
         </div>
       </div>
-      <div className="flex items-center justify-center gap-2 text-xs text-gray-600">
+      <div className="flex items-center justify-center gap-2 text-xs text-[#8090A6]">
         <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
         Sistema activo — monitoreando fuentes públicas chilenas
       </div>
     </div>
   );
 }
-
-// ─── Página principal ─────────────────────────────────────────────────────────
 
 export default function PublicacionesPage() {
   const [posts, setPosts] = useState<PostWithAnomaly[]>([]);
@@ -253,7 +243,6 @@ export default function PublicacionesPage() {
 
       const rawPosts = (viralData ?? []) as ViralPost[];
 
-      // Fetch related anomalies for posts that have trigger_anomaly
       const anomalyIds = rawPosts
         .map((p) => p.trigger_anomaly)
         .filter((id): id is string => Boolean(id));
@@ -281,7 +270,6 @@ export default function PublicacionesPage() {
 
     fetchPosts();
 
-    // Realtime subscription for new posts
     const channel = supabase
       .channel("viral_content_live")
       .on(
@@ -308,96 +296,88 @@ export default function PublicacionesPage() {
       : 0;
 
   return (
-    <div className="space-y-8 pb-12">
+    <div className="space-y-6 pb-12">
 
-      {/* ── Header ────────────────────────────────────────────────────────── */}
-      <section className="relative rounded-2xl overflow-hidden border border-gray-800 bg-gradient-to-br from-gray-900 via-gray-900 to-sky-950/20 p-6 sm:p-10">
-        <div className="space-y-3 max-w-3xl">
-          <div className="flex items-center gap-2">
-            <span className="text-2xl">📢</span>
-            <span className="text-xs font-mono text-sky-400 uppercase tracking-widest">
-              Publicaciones IA — Twitter/X
-            </span>
-          </div>
-          <h1 className="text-3xl sm:text-4xl font-bold text-white leading-tight">
-            Publicaciones Generadas por IA
-          </h1>
-          <p className="text-gray-400 leading-relaxed text-sm max-w-2xl">
-            Cuando el sistema detecta una anomalía con{" "}
-            <span className="text-yellow-400 font-semibold">≥85% de confianza</span>, genera
-            automáticamente un post listo para publicar en Twitter/X con evidencia. Los posts
-            aparecen aquí para revisión antes de ser publicados.
-          </p>
-        </div>
-
+      {/* Section header */}
+      <div className="bg-[#213E76] text-white px-4 py-2 font-bold text-sm uppercase tracking-wide flex items-center justify-between">
+        <span>📢 Publicaciones Generadas por IA</span>
         {liveCount > 0 && (
-          <div className="mt-4 inline-flex items-center gap-2 bg-green-900/40 border border-green-700 rounded-lg px-3 py-2">
+          <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-            <span className="text-xs text-green-400">
+            <span className="text-xs font-normal normal-case tracking-normal">
               {liveCount} nueva{liveCount !== 1 ? "s" : ""} en vivo
             </span>
           </div>
         )}
-      </section>
+      </div>
 
-      {/* ── Pending banner (only when there are pending posts) ────────────── */}
+      {/* Subtitle */}
+      <div>
+        <p className="text-[#8090A6] text-sm leading-relaxed">
+          Cuando el sistema detecta una anomalía con{" "}
+          <span className="text-[#E00911] font-semibold">≥85% de confianza</span>, genera
+          automáticamente un post listo para publicar en Twitter/X con evidencia.
+        </p>
+      </div>
+
+      {/* Pending banner */}
       {!loading && pendingCount > 0 && (
-        <div className="flex items-start gap-3 bg-orange-950/40 border border-orange-700 rounded-xl px-5 py-4">
+        <div className="flex items-start gap-3 bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-3">
           <span className="text-xl flex-shrink-0">⏳</span>
           <div>
-            <p className="text-orange-200 font-semibold text-sm">
+            <p className="text-yellow-800 font-semibold text-sm">
               {pendingCount} publicación{pendingCount !== 1 ? "es" : ""} pendiente{pendingCount !== 1 ? "s" : ""}
             </p>
-            <p className="text-orange-300/70 text-xs mt-0.5">
+            <p className="text-yellow-700 text-xs mt-0.5">
               El sistema las revisará antes de publicar en Twitter/X. El umbral de confianza mínimo es ≥85%.
             </p>
           </div>
         </div>
       )}
 
-      {/* ── Stats ─────────────────────────────────────────────────────────── */}
+      {/* Stats */}
       {!loading && posts.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 text-center">
-            <div className="text-2xl font-bold text-white">{posts.length}</div>
-            <div className="text-xs text-gray-500 mt-1">Total generados</div>
+          <div className="bg-white border border-[#ECECEC] rounded-lg p-4 text-center shadow-sm">
+            <div className="text-2xl font-bold text-[#1B212C]">{posts.length}</div>
+            <div className="text-xs text-[#8090A6] mt-1">Total generados</div>
           </div>
-          <div className="bg-green-900/20 border border-green-800 rounded-xl p-4 text-center">
-            <div className="text-2xl font-bold text-green-400">{publishedCount}</div>
-            <div className="text-xs text-green-600 mt-1">Publicados</div>
+          <div className="bg-white border border-[#ECECEC] rounded-lg p-4 text-center shadow-sm">
+            <div className="text-2xl font-bold text-green-700">{publishedCount}</div>
+            <div className="text-xs text-[#8090A6] mt-1">Publicados</div>
           </div>
-          <div className="bg-orange-900/20 border border-orange-800 rounded-xl p-4 text-center">
-            <div className="text-2xl font-bold text-orange-400">{pendingCount}</div>
-            <div className="text-xs text-orange-600 mt-1">Pendientes</div>
+          <div className="bg-white border border-[#ECECEC] rounded-lg p-4 text-center shadow-sm">
+            <div className="text-2xl font-bold text-yellow-700">{pendingCount}</div>
+            <div className="text-xs text-[#8090A6] mt-1">Pendientes</div>
           </div>
-          <div className="bg-yellow-900/20 border border-yellow-800 rounded-xl p-4 text-center">
-            <div className="text-2xl font-bold text-yellow-400">{avgConfidence}%</div>
-            <div className="text-xs text-yellow-600 mt-1">Confianza media</div>
+          <div className="bg-white border border-[#ECECEC] rounded-lg p-4 text-center shadow-sm">
+            <div className="text-2xl font-bold text-[#213E76]">{avgConfidence}%</div>
+            <div className="text-xs text-[#8090A6] mt-1">Confianza media</div>
           </div>
         </div>
       )}
 
-      {/* ── Live indicator ────────────────────────────────────────────────── */}
+      {/* Live indicator */}
       {!loading && posts.length > 0 && (
-        <div className="flex items-center gap-2 text-xs text-gray-500">
+        <div className="flex items-center gap-2 text-xs text-[#8090A6]">
           <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
           Conectado a Supabase Realtime — publicaciones en tiempo real
         </div>
       )}
 
-      {/* ── Content ───────────────────────────────────────────────────────── */}
+      {/* Content */}
       {loading ? (
         <div className="flex items-center justify-center py-16">
           <div className="text-center space-y-3">
-            <div className="w-8 h-8 border-2 border-sky-500 border-t-transparent rounded-full animate-spin mx-auto" />
-            <p className="text-gray-500 text-sm">Cargando publicaciones...</p>
+            <div className="w-8 h-8 border-2 border-[#213E76] border-t-transparent rounded-full animate-spin mx-auto" />
+            <p className="text-[#8090A6] text-sm">Cargando publicaciones...</p>
           </div>
         </div>
       ) : posts.length === 0 ? (
         <EmptyState />
       ) : (
         <div className="space-y-4">
-          <h2 className="text-lg font-semibold text-white">
+          <h2 className="text-sm font-semibold text-[#1B212C]">
             Publicaciones recientes ({posts.length})
           </h2>
           {posts.map((post) => (
@@ -406,28 +386,27 @@ export default function PublicacionesPage() {
         </div>
       )}
 
-      {/* ── CTA ───────────────────────────────────────────────────────────── */}
-      <section className="bg-gray-900 border border-gray-800 rounded-xl p-6 text-center space-y-3">
-        <p className="text-gray-400 text-sm">
+      {/* CTA */}
+      <section className="bg-white border border-[#ECECEC] rounded-lg p-6 text-center space-y-3 shadow-sm">
+        <p className="text-[#8090A6] text-sm">
           El sistema de IA analiza fuentes públicas del Estado chileno continuamente. Las anomalías
           con alta confianza generan posts de denuncia automáticamente.
         </p>
         <div className="flex gap-3 justify-center flex-wrap">
           <Link
             href="/radar/"
-            className="px-4 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-200 rounded-lg text-sm font-medium transition-colors"
+            className="px-4 py-2 bg-white hover:bg-[#F5F5F5] border border-[#213E76] text-[#213E76] rounded-lg text-sm font-semibold transition-colors"
           >
             📡 Radar de Anomalías
           </Link>
           <Link
             href="/red-corrupcion/"
-            className="px-4 py-2 bg-red-700 hover:bg-red-600 text-white rounded-lg text-sm font-medium transition-colors"
+            className="px-4 py-2 bg-[#E00911] hover:bg-red-700 text-white rounded-lg text-sm font-semibold transition-colors"
           >
             🕵️ Red de Corrupción
           </Link>
         </div>
       </section>
-
     </div>
   );
 }

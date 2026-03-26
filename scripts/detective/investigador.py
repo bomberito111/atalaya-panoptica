@@ -20,12 +20,13 @@ from scripts.utils.rate_limiter import polite_sleep
 
 logger = logging.getLogger(__name__)
 
-INFORME_SYSTEM = """Eres un periodista de investigación especializado en corrupción del Estado chileno.
-Tu trabajo es generar informes periodísticos completos y verificables, estilo «CIPER Chile» o «La Bot».
-Debes citar fechas, montos, nombres reales y fuentes concretas. NUNCA inventes datos.
-Responde SIEMPRE en JSON válido."""
+INFORME_SYSTEM = """Eres el periodista de investigación más riguroso de Chile, especializado en corrupción del Estado.
+Tu estilo es el de CIPER Chile: profundo, verificable, con datos concretos, fechas exactas y montos reales.
+Escribes reportajes de 2 a 3 páginas completas. Nunca usas frases vacías. Cada párrafo añade información nueva.
+NUNCA inventes datos, montos ni nombres. Si no tienes datos concretos, escribe «no se pudo verificar».
+Responde SIEMPRE en JSON válido, sin bloques markdown adicionales."""
 
-INFORME_PROMPT = """Basándote en la anomalía detectada y el contexto adicional encontrado, genera un informe periodístico completo.
+INFORME_PROMPT = """Basándote en la anomalía detectada y el contexto adicional encontrado, genera un reportaje periodístico COMPLETO y EXTENSO de mínimo 1500 palabras en el cuerpo. Esto equivale a 2-3 páginas de diario impreso.
 
 ANOMALÍA DETECTADA:
 Tipo: {tipo}
@@ -35,26 +36,45 @@ Evidencia original: {evidencia}
 Fecha del hecho: {fecha_evento}
 Fuente original: {source_url}
 
-CONTEXTO ADICIONAL ENCONTRADO:
+CONTEXTO ADICIONAL ENCONTRADO (noticias, contratos, dictámenes):
 {contexto_adicional}
 
-DATOS DE TRANSPARENCIA:
+DATOS DE TRANSPARENCIA (ChileCompra, Contraloría):
 {datos_transparencia}
 
-Genera el informe en JSON:
+Genera el reportaje completo en JSON. CADA campo de sección debe contener el texto indicado:
+
 {{
-  "titular": "Titular periodístico impactante (máx. 15 palabras)",
-  "subtitular": "Subtítulo que explica el hallazgo central (1 oración)",
-  "cuerpo_informe": "Informe completo de 3-5 párrafos. Primer párrafo: responde QUIÉN, QUÉ, CUÁNDO, CUÁNTO y DÓNDE. Segundo párrafo: antecedentes y contexto. Tercer párrafo: evidencia específica. Cuarto párrafo: implicancias y lo que falta investigar.",
-  "entidades_clave": ["Nombre1", "Nombre2"],
-  "montos_detectados": ["$X millones CLP por Y"],
-  "fechas_clave": ["DD-MM-YYYY: evento"],
-  "fuentes_adicionales": ["URL1", "URL2"],
-  "confianza_informe": 0.0-1.0,
-  "lineas_investigacion": ["Línea 1: qué debería revisar un fiscal", "Línea 2: qué pedir por transparencia"],
-  "palabras_clave": ["keyword1", "keyword2"]
+  "titular": "Titular periodístico específico (máx. 15 palabras, menciona entidad y monto o irregularidad)",
+  "subtitular": "Subtítulo con el hallazgo central más relevante (1-2 oraciones con datos duros)",
+  "seccion_hallazgo_principal": "PRIMER BLOQUE — mínimo 300 palabras. Responde QUIÉN, QUÉ, CUÁNDO, CUÁNTO y DÓNDE. Nombra a cada persona e institución. Cita el monto exacto si existe. Da la fecha exacta del hecho. Explica la irregularidad concreta detectada en detalle.",
+  "seccion_antecedentes": "SEGUNDO BLOQUE — mínimo 300 palabras. Contexto histórico. ¿Cuándo y cómo comenzó esta relación, contrato o cargo? ¿Qué cargos han tenido estas personas antes? ¿Hay antecedentes previos de irregularidades con las mismas entidades? ¿Qué dice la ley chilena sobre este tipo de situación? Referencia leyes específicas.",
+  "seccion_evidencia": "TERCER BLOQUE — mínimo 300 palabras. Evidencia detallada. Explica cómo los datos de ChileCompra, Contraloría u otras fuentes confirman la anomalía. Compara precios con referencia de mercado si hay sobreprecio. Detalla el flujo del dinero o la secuencia de decisiones irregulares. Cita URLs o códigos de licitación.",
+  "seccion_voces_implicados": "CUARTO BLOQUE — mínimo 200 palabras. Declaraciones públicas de los involucrados (búscalas en el contexto). Si no hay declaraciones disponibles, indica: 'Atalaya Panóptica consultó fuentes públicas disponibles pero no encontró declaraciones de [nombre] sobre este tema hasta la fecha de publicación'. Añade contexto político o institucional.",
+  "seccion_implicancias": "QUINTO BLOQUE — mínimo 300 palabras. ¿Qué significa este hallazgo para el Estado y los ciudadanos? ¿Cuánto dinero público está en juego? ¿Qué normativa se habría vulnerado? Cita leyes específicas (Ley 19.886 compras públicas, Ley 18.575 administración, Ley 20.730 del lobby, Ley 20.880 probidad). ¿Qué organismo debería investigar? ¿Hay casos similares conocidos?",
+  "seccion_que_falta": "SEXTO BLOQUE — mínimo 150 palabras. Líneas de investigación abiertas. ¿Qué documentos habría que pedir por transparencia? ¿Qué preguntas parlamentarias podrían formularse? ¿Qué organismos deberían activarse? ¿Qué datos no se pudieron verificar y por qué?",
+  "cuerpo_informe": "TEXTO COMPLETO del reportaje con los 6 bloques anteriores integrados en prosa periodística fluida. MÍNIMO 1500 PALABRAS. Usa subtítulos en mayúsculas (ej: EL CONTRATO, LOS ANTECEDENTES, LA EVIDENCIA, LAS IMPLICANCIAS, QUÉ FALTA INVESTIGAR). Este es el texto que se publicará en el diario digital.",
+  "entidades_clave": ["Nombre completo 1 (cargo o empresa)", "Nombre completo 2"],
+  "montos_detectados": ["$X.XXX.XXX CLP por concepto Y en fecha Z"],
+  "fechas_clave": ["DD-MM-YYYY: descripción del evento"],
+  "fuentes_adicionales": ["URL verificable 1", "URL verificable 2"],
+  "confianza_informe": 0.75,
+  "lineas_investigacion": [
+    "Solicitar por transparencia: [documento específico] al [organismo]",
+    "Cruzar RUT de [entidad] con contratos adjudicados en chilecompra.cl",
+    "Revisar declaración de intereses de [persona] en leylobby.gob.cl",
+    "Pedir dictámenes de Contraloría sobre [organismo] de los últimos 5 años"
+  ],
+  "palabras_clave": ["keyword1 SEO", "keyword2 SEO"]
 }}
-IMPORTANTE: Solo incluye datos verificables de las fuentes proporcionadas. No inventes montos ni nombres.
+
+REGLAS ABSOLUTAS:
+1. El "cuerpo_informe" DEBE tener mínimo 1500 palabras. Cuéntalo antes de responder.
+2. Nombra personas y organismos ESPECÍFICOS. Nunca uses genéricos si tienes el nombre real.
+3. Si un dato no está disponible, escribe exactamente: «No se pudo verificar con las fuentes disponibles».
+4. Cita las leyes chilenas por su número exacto.
+5. El tono es periodístico serio y directo, no sensacionalista. Los datos hablan por sí solos.
+6. En lineas_investigacion proporciona al menos 4 acciones concretas y específicas.
 """
 
 
@@ -206,7 +226,7 @@ def investigar_anomalia(anomalia: dict) -> bool:
         datos_transparencia=ctx_transparencia[:1000],
     )
 
-    result = chat_json(prompt, system=INFORME_SYSTEM, max_tokens=2000, temperature=0.2)
+    result = chat_json(prompt, system=INFORME_SYSTEM, max_tokens=6000, temperature=0.3)
     if not result or not result.get("titular"):
         logger.warning(f"Groq no generó informe para anomalía {anomalia['id']}")
         return False
@@ -222,23 +242,71 @@ def investigar_anomalia(anomalia: dict) -> bool:
     lineas = result.get("lineas_investigacion", [])
     confianza = float(result.get("confianza_informe", 0.6))
 
-    raw_text = f"""INFORME DE INVESTIGACIÓN — ATALAYA PANÓPTICA
-Tipo: {tipo}
-Titular: {titular}
-Subtitular: {subtitular}
-Entidades: {', '.join(entidades_clave)}
+    # Extraer secciones adicionales para el texto completo
+    seccion_hallazgo = result.get("seccion_hallazgo_principal", "")
+    seccion_antecedentes = result.get("seccion_antecedentes", "")
+    seccion_evidencia = result.get("seccion_evidencia", "")
+    seccion_voces = result.get("seccion_voces_implicados", "")
+    seccion_implicancias = result.get("seccion_implicancias", "")
+    seccion_que_falta = result.get("seccion_que_falta", "")
+
+    raw_text = f"""REPORTAJE DE INVESTIGACIÓN — ATALAYA PANÓPTICA
+================================================================
+Tipo de irregularidad: {tipo}
+Entidades involucradas: {', '.join(entidades_clave)}
 Fecha del hecho: {fecha_evento}
 Fuente original: {source_url}
+Confianza IA: {confianza:.0%}
 
+{titular.upper()}
+{subtitular}
+
+================================================================
+EL HALLAZGO
+================================================================
+{seccion_hallazgo or cuerpo}
+
+================================================================
+LOS ANTECEDENTES
+================================================================
+{seccion_antecedentes}
+
+================================================================
+LA EVIDENCIA
+================================================================
+{seccion_evidencia}
+
+================================================================
+LAS DECLARACIONES
+================================================================
+{seccion_voces}
+
+================================================================
+LAS IMPLICANCIAS
+================================================================
+{seccion_implicancias}
+
+================================================================
+QUÉ FALTA INVESTIGAR
+================================================================
+{seccion_que_falta}
+
+================================================================
+TEXTO COMPLETO DEL REPORTAJE
+================================================================
 {cuerpo}
 
-MONTOS DETECTADOS: {'; '.join(montos) if montos else 'No cuantificado'}
-FECHAS CLAVE: {'; '.join(fechas) if fechas else fecha_evento}
-LÍNEAS DE INVESTIGACIÓN:
+================================================================
+DATOS CLAVE
+================================================================
+MONTOS: {'; '.join(montos) if montos else 'No cuantificado en las fuentes disponibles'}
+FECHAS: {'; '.join(fechas) if fechas else fecha_evento}
+
+LÍNEAS DE INVESTIGACIÓN ABIERTAS:
 {chr(10).join(f'• {l}' for l in lineas)}
 
-FUENTES ADICIONALES:
-{chr(10).join(f'• {f}' for f in fuentes[:5])}
+FUENTES CONSULTADAS:
+{chr(10).join(f'• {f}' for f in fuentes[:8])}
 """
 
     all_urls = [source_url] + [r.get("url", "") for r in noticias_adicionales[:3]]
@@ -257,8 +325,15 @@ FUENTES ADICIONALES:
         "lineas_investigacion": lineas,
         "titular": titular,
         "subtitular": subtitular,
+        "seccion_hallazgo": seccion_hallazgo,
+        "seccion_antecedentes": seccion_antecedentes,
+        "seccion_evidencia": seccion_evidencia,
+        "seccion_voces": seccion_voces,
+        "seccion_implicancias": seccion_implicancias,
+        "seccion_que_falta": seccion_que_falta,
         # La fecha del hecho original (para que el Detective la use como event_date)
         "fecha": fecha_evento,
+        "published": fecha_evento,  # Para normalize_event_date()
     }
 
     enqueued = enqueue(
