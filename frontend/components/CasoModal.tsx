@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useCallback } from "react";
+import Link from "next/link";
 import type { Anomaly } from "@/lib/supabase";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -236,18 +237,18 @@ export default function CasoModal({ anomaly: a, onClose }: CasoModalProps) {
             >
               📤 Compartir
             </button>
-            <a
+            <Link
               href="/pared/"
               className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2.5 bg-purple-950/40 hover:bg-purple-900/40 border border-purple-900/50 text-purple-300 rounded-xl text-sm font-medium transition-colors"
             >
               🕸 Ver red de corrupción
-            </a>
-            <a
+            </Link>
+            <Link
               href="/ayudanos/"
               className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2.5 bg-red-950/40 hover:bg-red-900/40 border border-red-900/50 text-red-300 rounded-xl text-sm font-medium transition-colors"
             >
               🚨 Enviar denuncia
-            </a>
+            </Link>
           </div>
         </div>
       </div>
