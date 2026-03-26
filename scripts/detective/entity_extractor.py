@@ -110,6 +110,8 @@ Responde en JSON:
       "objeto": "Nombre de la entidad destino",
       "tipo_objeto": "persona/empresa/institucion/contrato",
       "evidencia": "Cita textual del documento que justifica esta relación",
+      "razon": "Explicación en 1-2 oraciones: qué evidencia en el texto justifica esta conexión. Cita el texto si es posible.",
+      "cita_textual": "Fragmento exacto del documento que prueba esta relación",
       "confianza": 0.95
     }}
   ]

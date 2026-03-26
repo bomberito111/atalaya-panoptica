@@ -257,12 +257,25 @@ def process_entities_and_relations(
                     break
 
         if source_id and target_id:
+            # Build a rich evidence_text from razon + cita_textual when available
+            razon = rel.get("razon", "")
+            cita = rel.get("cita_textual", "")
+            evidencia = rel.get("evidencia", "")
+            if razon and cita:
+                evidence_text = f"Cita: '{cita}' — Razón: {razon}"
+            elif razon:
+                evidence_text = razon
+            elif cita:
+                evidence_text = f"Cita: '{cita}'"
+            else:
+                evidence_text = evidencia
+
             edge_id = upsert_edge(
                 source_id=source_id,
                 target_id=target_id,
                 relation_type=relation_type,
                 evidence_url=source_url,
-                evidence_text=rel.get("evidencia", ""),
+                evidence_text=evidence_text,
                 weight=confianza,
                 queue_item_id=queue_item_id,
             )

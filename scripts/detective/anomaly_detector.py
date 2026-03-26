@@ -36,7 +36,7 @@ Responde en JSON:
     {{
       "tipo": "sobreprecio|conflicto_interes|puerta_giratoria|bot_network|fake_news",
       "confianza": 0.0-1.0,
-      "descripcion": "Explicación clara en español de la anomalía detectada",
+      "descripcion": "Describe en 2-3 oraciones: QUÉ irregularidad se detectó, QUIÉN está involucrado, y QUÉ evidencia específica del documento lo demuestra. Sé concreto y cita montos, fechas o nombres cuando estén disponibles.",
       "evidencia_textual": "Cita exacta del documento que sustenta",
       "entidades_involucradas": ["Nombre1", "Nombre2"],
       "recomendacion": "Qué debería investigar un periodista o fiscal"
