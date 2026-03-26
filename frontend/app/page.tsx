@@ -77,6 +77,12 @@ function CasoDestacado({ a, onClick }: { a: Anomaly; onClick: () => void }) {
   const entities = (Array.isArray(ev.entidades_nombradas) ? ev.entidades_nombradas : []) as string[];
   const evidenceText = ev.texto as string | undefined;
   const { display: dateDisplay, isReal } = getEventDate(a);
+  const cuerpoInforme = ev.cuerpo_informe as string | undefined;
+  const seccionHallazgo = ev.seccion_hallazgo as string | undefined;
+
+  const cuerpoFull = cuerpoInforme || seccionHallazgo;
+  const cuerpoPreview = cuerpoFull ? cuerpoFull.slice(0, 600) : null;
+  const showFullDescription = !cuerpoFull && a.description.length > 150;
 
   return (
     <article
@@ -124,6 +130,26 @@ function CasoDestacado({ a, onClick }: { a: Anomaly; onClick: () => void }) {
           </blockquote>
         )}
 
+        {/* Cuerpo del informe o sección de hallazgo (primeros 600 chars) */}
+        {cuerpoPreview && (
+          <div className="text-sm text-[#1B212C] leading-relaxed mt-3 border-t border-[#ECECEC] pt-3">
+            <p>{cuerpoPreview}{cuerpoFull && cuerpoFull.length > 600 ? "…" : ""}</p>
+            <button
+              onClick={(e) => { e.stopPropagation(); onClick(); }}
+              className="mt-2 text-xs text-[#213E76] font-semibold hover:underline"
+            >
+              Leer reportaje completo →
+            </button>
+          </div>
+        )}
+
+        {/* Descripción completa cuando no hay cuerpo y es larga */}
+        {showFullDescription && !cuerpoPreview && (
+          <p className="text-sm text-[#1B212C] leading-relaxed mt-3 border-t border-[#ECECEC] pt-3">
+            {a.description}
+          </p>
+        )}
+
         {/* Entidades como chips */}
         {entities.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
@@ -151,7 +177,7 @@ function CasoDestacado({ a, onClick }: { a: Anomaly; onClick: () => void }) {
             <span />
           )}
           <span className="text-xs text-[#E00911] font-bold">
-            Leer investigación completa →
+            📰 Leer reportaje completo →
           </span>
         </div>
       </div>
@@ -430,22 +456,18 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* ⚡ DENUNCIAR UN CASO */}
-          <div className="bg-white border border-[#ECECEC] rounded overflow-hidden">
-            <div className="bg-[#E00911] text-white text-xs font-black uppercase tracking-widest px-4 py-2">
-              ⚡ DENUNCIAR UN CASO
-            </div>
-            <div className="p-4 space-y-3">
-              <p className="text-[#1B212C] text-sm leading-relaxed">
-                ¿Conoces información sobre corrupción que no aparece aquí? La ciudadanía tiene datos clave que los sistemas automáticos no pueden ver.
-              </p>
-              <Link
-                href="/ayudanos/"
-                className="block w-full text-center py-2 bg-[#E00911] hover:bg-red-700 text-white rounded text-sm font-black transition-colors"
-              >
-                Enviar denuncia ciudadana →
-              </Link>
-            </div>
+          {/* 💡 ¿SABES ALGO? */}
+          <div className="bg-red-50 border border-red-200 rounded p-4 space-y-2">
+            <p className="text-xs font-black uppercase tracking-widest text-[#E00911]">💡 ¿Sabes algo que no aparece aquí?</p>
+            <p className="text-[#1B212C] text-xs leading-relaxed">
+              La ciudadanía tiene información clave que los sistemas automáticos no pueden ver. Puedes denunciar de forma completamente anónima.
+            </p>
+            <Link
+              href="/ayudanos/"
+              className="text-xs text-[#E00911] font-bold hover:underline"
+            >
+              Enviar denuncia anónima →
+            </Link>
           </div>
 
           {/* ⚠️ AVISO IA */}

@@ -81,6 +81,7 @@ def detect_anomalies(
     source_url: str = None,
     queue_item_id: str = None,
     event_date: str = None,   # Fecha real del evento (publicación de la noticia, firma del contrato, etc.)
+    extra_metadata: dict = None,  # Metadatos adicionales del queue item (cuerpo_informe, titular, etc.)
 ) -> list[str]:
     """
     Analiza un texto en busca de anomalías de corrupción.
@@ -122,19 +123,36 @@ def detect_anomalies(
         tipo_norm = TIPO_MAP.get(tipo_raw, "conflicto_interes")
 
         # Obtener IDs de nodos involucrados (simplificado)
+        meta = extra_metadata or {}
+
+        # Construir evidencia base
+        evidence = {
+            "texto": anomalia.get("evidencia_textual", ""),
+            "recomendacion": anomalia.get("recomendacion", ""),
+            "source_url": source_url,
+            "entidades_nombradas": anomalia.get("entidades_involucradas", []),
+            # Fecha real del evento (cuando ocurrió/se publicó, no cuando se detectó)
+            "fecha_evento": event_date,
+        }
+
+        # Si el ítem viene del investigador_automatico, incluir el informe completo
+        # para que el frontend pueda mostrarlo como artículo de 2+ páginas
+        for campo in [
+            "titular", "subtitular", "cuerpo_informe",
+            "seccion_hallazgo", "seccion_antecedentes", "seccion_evidencia",
+            "seccion_voces", "seccion_implicancias", "seccion_que_falta",
+            "montos", "fechas_clave", "lineas_investigacion", "fuentes_adicionales",
+            "palabras_clave", "confianza_informe",
+        ]:
+            if campo in meta and meta[campo]:
+                evidence[campo] = meta[campo]
+
         record = {
             "anomaly_type": tipo_norm,
             "confidence": confianza,
             "description": anomalia.get("descripcion", ""),
             "entities": [],  # Se podría resolver a UUIDs si se tiene el node_registry
-            "evidence": {
-                "texto": anomalia.get("evidencia_textual", ""),
-                "recomendacion": anomalia.get("recomendacion", ""),
-                "source_url": source_url,
-                "entidades_nombradas": anomalia.get("entidades_involucradas", []),
-                # Fecha real del evento (cuando ocurrió/se publicó, no cuando se detectó)
-                "fecha_evento": event_date,
-            },
+            "evidence": evidence,
             "status": "activa",
             "queue_item_id": queue_item_id,
         }

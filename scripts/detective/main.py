@@ -119,6 +119,7 @@ def process_item(item: dict) -> bool:
             source_url=source_url,
             queue_item_id=item_id,
             event_date=event_date,   # Fecha real del hecho, no de detección
+            extra_metadata=metadata, # Pasa cuerpo_informe, titular, etc. del investigador
         )
 
         # ── Paso 4b: Verificar anomalías en internet ────────────────────────
