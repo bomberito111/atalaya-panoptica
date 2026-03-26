@@ -1,12 +1,13 @@
 """
 ATALAYA PANÓPTICA — Scraper: Búsqueda Web Ampliada
-Rastrea toda la internet relacionada con Chile: DuckDuckGo, Reddit, foros, YouTube (títulos).
+Rastrea toda la internet relacionada con Chile: DuckDuckGo, Reddit, Google News RSS.
 Sin API key requerida.
 """
 
 import logging
 import httpx
-import json
+import feedparser
+from urllib.parse import quote_plus
 from scripts.rastreador.queue_manager import enqueue_batch
 from scripts.utils.rate_limiter import SCRAPER_LIMITER, polite_sleep
 from scripts.utils.text_cleaner import clean_text
@@ -15,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 # Queries de búsqueda — Chile + corrupción + poder
 SEARCH_QUERIES = [
-    # Corrupción general
+    # ── Corrupción general ─────────────────────────────────────────────────
     "corrupción Chile gobierno 2024 2025",
     "licitación irregular Chile empresa contrato",
     "imputado Chile fraude millones pesos",
@@ -31,28 +32,136 @@ SEARCH_QUERIES = [
     "desvío fondos Chile municipalidad cuenta",
     "colusión empresas Chile SII investigación",
     "caso corrupción Chile 2025 nuevo",
-    # Casos específicos conocidos
+    # ── Casos específicos conocidos ────────────────────────────────────────
     "caso SQM financiamiento campaña Chile",
     "Pandora Papers Chile Piñera Dominga",
     "carabineros fondos reservados malversación",
     "caso PENTA UDI financiamiento ilegal",
     "Corpesca lobbying ley pesca Chile",
-    # Medios bajo sospecha
+    "caso Convenios Chile 2023",
+    "caso Democracia Viva Chile",
+    "Fundación Democracia Viva Chile irregularidad",
+    # ── Medios y comunicaciones ────────────────────────────────────────────
     "El Mercurio Edwards dictadura Chile",
     "concentración medios Chile propietario",
     "pauta gubernamental publicidad medios Chile",
-    # Poder económico
+    # ── Poder económico ────────────────────────────────────────────────────
     "Luksic Chile empresa política lobby",
     "Matte empresa política Chile influencia",
     "Angelini grupo empresa política Chile",
-    # Municipios y regiones
+    # ── Municipios y regiones ──────────────────────────────────────────────
     "alcalde Chile formalizado imputado 2024 2025",
     "municipio Chile sobreprecios contrato empresa",
     "concejal Chile irregularidad denuncia",
-    # RRSS y desinformación
+    # ── RRSS y desinformación ──────────────────────────────────────────────
     "fake news Chile desinformación gobierno",
     "bots Chile Twitter campaña política",
     "astroturfing Chile redes sociales",
+    # ── Ministerios ───────────────────────────────────────────────────────
+    "Ministerio Salud Chile licitación sobreprecios contrato",
+    "Ministerio Educación Chile licitación irregularidad",
+    "Ministerio Obras Públicas Chile contrato empresa irregular",
+    "Ministerio Interior Chile contrato irregularidad empresa",
+    "Ministerio Hacienda Chile empresa contrato lobby",
+    "Ministerio Justicia Chile licitación empresa contrato",
+    "Ministerio Defensa Chile contrato empresa irregular",
+    "Ministerio Economía Chile licitación empresa sobreprecios",
+    "Ministerio Vivienda Chile contrato empresa irregularidad",
+    "Ministerio Agricultura Chile licitación empresa",
+    "Ministerio Energía Chile contrato empresa irregular",
+    "Ministerio Transportes Chile licitación empresa sobreprecios",
+    "Ministerio Trabajo Chile contrato empresa irregularidad",
+    "Ministerio Medio Ambiente Chile empresa sanción SMA",
+    "Ministerio Cultura Chile FONDART irregularidad",
+    "Ministerio Ciencia Chile FONDECYT irregularidad contrato",
+    "Ministerio Deporte Chile licitación empresa",
+    "Ministerio Mujer Chile contrato empresa irregularidad",
+    "Ministerio Pueblos Indígenas Chile licitación empresa",
+    "Segpres Chile contrato empresa irregularidad",
+    "Segegob Chile pauta publicitaria empresa",
+    "Cancillería Chile Relaciones Exteriores contrato empresa",
+    # ── Regiones — corrupción territorial ────────────────────────────────
+    "corrupción Arica Parinacota Chile municipio",
+    "corrupción Tarapacá Iquique Chile licitación",
+    "corrupción Antofagasta Chile minería contrato empresa",
+    "corrupción Atacama Copiapó Chile municipio licitación",
+    "corrupción Coquimbo La Serena Chile municipio",
+    "corrupción Valparaíso Chile municipio alcalde irregularidad",
+    "corrupción Región Metropolitana Santiago Chile municipio",
+    "corrupción O'Higgins Rancagua Chile municipio alcalde",
+    "corrupción Maule Talca Chile municipio licitación",
+    "corrupción Ñuble Chillán Chile municipio irregularidad",
+    "corrupción Biobío Concepción Chile municipio contrato",
+    "corrupción Araucanía Temuco Chile municipio irregularidad",
+    "corrupción Los Ríos Valdivia Chile municipio licitación",
+    "corrupción Los Lagos Puerto Montt Chile municipio",
+    "corrupción Aysén Coyhaique Chile municipio contrato",
+    "corrupción Magallanes Punta Arenas Chile municipio",
+    # ── Hospitales y FONASA ────────────────────────────────────────────────
+    "hospital Chile licitación sobreprecios empresa",
+    "FONASA Chile contrato empresa irregularidad",
+    "hospital público Chile irregularidad contrato proveedor",
+    "FONASA Chile licitación sobreprecios médico",
+    # ── Carabineros y Fuerzas Armadas ─────────────────────────────────────
+    "Carabineros Chile contrato empresa irregularidad",
+    "Carabineros Chile licitación sobreprecios empresa",
+    "FFAA Chile licitación armas contrato irregular",
+    "Ejército Chile contrato irregularidad empresa",
+    "Armada Chile licitación empresa contrato irregular",
+    "Fuerza Aérea Chile contrato empresa irregularidad",
+    # ── Educación ─────────────────────────────────────────────────────────
+    "municipio Chile sostenedor educación irregularidad contrato",
+    "universidad Chile licitación irregularidad rector",
+    "DAEM Chile sostenedor irregularidad contrato empresa",
+    # ── Agua y recursos naturales ─────────────────────────────────────────
+    "agua potable Chile empresa concesión contrato",
+    "minería Chile concesión ambiental empresa irregular",
+    "pesca Chile cuota empresa irregularidad",
+    # ── Empresas del Estado ───────────────────────────────────────────────
+    "CODELCO Chile irregularidad contrato empresa",
+    "ENAP Chile licitación empresa sobreprecios",
+    "EFE Chile contrato sobreprecios empresa",
+    "Metro Chile licitación empresa contrato",
+    "ENAMI Chile contrato empresa irregularidad",
+    "BancoEstado Chile contrato empresa irregularidad",
+    "CORFO Chile empresa subsidio irregularidad",
+    "TVN Chile contrato empresa irregularidad",
+    # ── Poder Judicial ────────────────────────────────────────────────────
+    "juez Chile caso corrupción formalización",
+    "fiscal Chile formalización político caso",
+    "corrupción poder judicial Chile caso",
+    # ── Municipios específicos ─────────────────────────────────────────────
+    "municipio Santiago Chile contrato empresa irregularidad",
+    "municipio Maipú Chile licitación sobreprecios",
+    "municipio Las Condes Chile contrato empresa",
+    "municipio Puente Alto Chile licitación empresa",
+    "municipio La Florida Chile contrato irregularidad",
+    "municipio Antofagasta Chile licitación empresa sobreprecios",
+    "municipio Viña del Mar Chile contrato empresa",
+    "municipio Valparaíso Chile licitación irregularidad",
+    "municipio Concepción Chile contrato empresa",
+    "municipio Temuco Chile licitación empresa sobreprecios",
+    # ── Fondos públicos ────────────────────────────────────────────────────
+    "FONDART Chile irregularidad fundación",
+    "FONDECYT Chile irregularidad contrato",
+    "Chile Compra irregularidad licitación empresa",
+    "SENCE Chile empresa capacitación irregularidad",
+    "FOSIS Chile empresa irregularidad contrato",
+    # ── Partidos políticos ─────────────────────────────────────────────────
+    "RN Renovación Nacional Chile financiamiento irregular empresa",
+    "UDI Chile financiamiento ilegal empresa contrato",
+    "PS Partido Socialista Chile financiamiento empresa irregular",
+    "PPD Chile financiamiento irregular empresa",
+    "Partido Comunista Chile financiamiento empresa",
+    "Frente Amplio Chile financiamiento empresa irregular",
+    "DC Democracia Cristiana Chile financiamiento empresa",
+    "Evópoli Chile financiamiento empresa irregular",
+    "Revolución Democrática Chile financiamiento empresa",
+    "Convergencia Social Chile financiamiento empresa",
+    # ── Medio ambiente ────────────────────────────────────────────────────
+    "SMA Chile empresa sanción ambiental irregularidad",
+    "CONAF Chile contrato empresa irregularidad",
+    "SEA Chile empresa proyecto ambiental contrato",
 ]
 
 REDDIT_SUBREDDITS = [
@@ -66,6 +175,35 @@ REDDIT_KEYWORDS = [
     "corrupción", "licitación", "político", "gobierno", "ministerio",
     "alcalde", "municipio", "fraude", "sobreprecios", "lobby",
     "escándalo", "imputado", "Contraloría", "Fiscalía", "empresa",
+    "FONASA", "hospital", "Carabineros", "Ejército", "FFAA",
+    "CODELCO", "ENAP", "EFE", "Metro", "CORFO",
+    "FONDART", "FONDECYT", "SENCE", "adjudicación", "contrato",
+    "irregularidad", "malversación", "financiamiento", "partido",
+    "diputado", "senador", "intendente", "gobernador",
+]
+
+# Queries prioritarias para Google News RSS (las más importantes)
+GOOGLE_NEWS_PRIORITY_QUERIES = [
+    "corrupción Chile gobierno 2025",
+    "caso Convenios Chile Democracia Viva",
+    "licitación irregular Chile ministerio",
+    "imputado Chile fraude funcionario",
+    "Fiscalía Chile político formalización",
+    "Contraloría Chile irregularidad dictamen",
+    "CODELCO Chile irregularidad contrato",
+    "Carabineros Chile contrato irregularidad",
+    "hospital Chile FONASA licitación sobreprecios",
+    "alcalde Chile imputado formalizado",
+    "municipio Chile sobreprecios contrato",
+    "Chile Compra irregularidad empresa",
+    "Ministerio Chile contrato empresa escándalo",
+    "lobby Chile congreso empresa",
+    "financiamiento político Chile empresa ilegal",
+    "SMA Chile empresa sanción ambiental",
+    "caso corrupción Chile 2024 2025",
+    "FONASA Chile contrato empresa irregular",
+    "Ejército Chile contrato irregularidad",
+    "CORFO Chile empresa subsidio irregular",
 ]
 
 
@@ -83,7 +221,6 @@ def search_duckduckgo(query: str, max_results: int = 10) -> list[dict]:
             data = resp.json()
 
         results = []
-        # RelatedTopics
         for topic in data.get("RelatedTopics", [])[:max_results]:
             if isinstance(topic, dict) and topic.get("Text"):
                 results.append({
@@ -126,13 +263,51 @@ def search_duckduckgo_html(query: str, max_results: int = 10) -> list[dict]:
         return []
 
 
+def search_google_news_rss(query: str, max_results: int = 10) -> list[dict]:
+    """
+    Fetch Google News RSS feed para noticias chilenas.
+    URL: https://news.google.com/rss/search?q={query}&hl=es-CL&gl=CL&ceid=CL:es
+    Retorna lista de {title, url, snippet, published}.
+    """
+    try:
+        encoded_query = quote_plus(query)
+        rss_url = (
+            f"https://news.google.com/rss/search"
+            f"?q={encoded_query}&hl=es-CL&gl=CL&ceid=CL:es"
+        )
+        headers = {
+            "User-Agent": "Mozilla/5.0 (compatible; AtalayaBot/1.0; +https://github.com/bomberito111/atalaya-panoptica)"
+        }
+        with httpx.Client(timeout=20, follow_redirects=True, headers=headers) as client:
+            resp = client.get(rss_url)
+            resp.raise_for_status()
+
+        feed = feedparser.parse(resp.text)
+        results = []
+        for entry in feed.entries[:max_results]:
+            title = entry.get("title", "")
+            url = entry.get("link", "")
+            snippet = entry.get("summary", title)
+            published = entry.get("published", "")
+            results.append({
+                "title": title,
+                "url": url,
+                "snippet": snippet,
+                "published": published,
+            })
+        return results
+    except Exception as e:
+        logger.warning(f"Google News RSS error para '{query}': {e}")
+        return []
+
+
 def fetch_reddit_subreddit(subreddit: str, keyword: str, limit: int = 25) -> list[dict]:
     """Fetch posts de Reddit con keyword en subreddit (JSON API pública)."""
     try:
         headers = {
             "User-Agent": "AtalayaBot/1.0 (anticorrupción Chile; contact: github.com/bomberito111)"
         }
-        url = f"https://www.reddit.com/search.json"
+        url = "https://www.reddit.com/search.json"
         params = {
             "q": f"{keyword} subreddit:{subreddit.replace('r/', '')}",
             "sort": "new",
@@ -170,12 +345,45 @@ Extracto: {clean_text(result.get('snippet', ''))}
 """
 
 
+def result_to_text_news(result: dict, query: str) -> str:
+    return f"""GOOGLE NEWS RSS — CHILE
+Consulta: {query}
+Título: {result.get('title', '')}
+URL: {result.get('url', '')}
+Publicado: {result.get('published', '')}
+Extracto: {clean_text(result.get('snippet', ''))}
+"""
+
+
 def run():
     """Entry point del scraper de búsqueda web ampliada."""
     logger.info("Búsqueda web: rastreando internet relacionada con Chile...")
     all_items = []
 
-    # 1. DuckDuckGo — TODAS las queries de corrupción (max datos posible)
+    # 1. Google News RSS — queries prioritarias de corrupción y casos emblemáticos
+    logger.info("Google News RSS: procesando queries prioritarias...")
+    for query in GOOGLE_NEWS_PRIORITY_QUERIES:
+        SCRAPER_LIMITER.consume()
+        results = search_google_news_rss(query, max_results=10)
+        logger.info(f"  GNews '{query[:50]}...': {len(results)} resultados")
+
+        for r in results:
+            all_items.append({
+                "source": "google_news_rss",
+                "raw_text": result_to_text_news(r, query),
+                "source_url": r.get("url") or f"https://news.google.com/search?q={query}",
+                "raw_metadata": {
+                    "query": query,
+                    "titulo": r.get("title"),
+                    "published": r.get("published"),
+                    "motor": "google_news_rss",
+                },
+                "priority": 3,
+            })
+        polite_sleep(2.0, 4.0)
+
+    # 2. DuckDuckGo — TODAS las queries de corrupción (max datos posible)
+    logger.info("DuckDuckGo: procesando todas las queries...")
     for query in SEARCH_QUERIES:
         SCRAPER_LIMITER.consume()
         results = search_duckduckgo_html(query, max_results=15)
@@ -195,9 +403,10 @@ def run():
             })
         polite_sleep(1.5, 3.0)
 
-    # 2. Reddit — subreddits chilenos
+    # 3. Reddit — subreddits chilenos
+    logger.info("Reddit: rastreando subreddits chilenos...")
     for subreddit in REDDIT_SUBREDDITS:
-        for keyword in REDDIT_KEYWORDS:  # Todas las keywords
+        for keyword in REDDIT_KEYWORDS:
             SCRAPER_LIMITER.consume()
             posts = fetch_reddit_subreddit(subreddit, keyword, limit=25)
             logger.info(f"  Reddit {subreddit}/{keyword}: {len(posts)} posts")

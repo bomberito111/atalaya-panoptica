@@ -25,6 +25,7 @@ const NAV_LINKS = [
   { href: "/", label: "Inicio" },
   { href: "/red-corrupcion/", label: "🕵️ Red" },
   { href: "/grafo/", label: "🕸️ Grafo" },
+  { href: "/pared/", label: "🧵 Pared" },
   { href: "/muro-realidad/", label: "⚖️ Promesas" },
   { href: "/radar/", label: "📡 Radar" },
   { href: "/publicaciones/", label: "📢 Posts IA" },
