@@ -10,7 +10,7 @@ jobs:
   analizar:
     name: Procesar cola con Groq/Llama3
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 15
 
     steps:
       - name: Checkout repositorio
@@ -29,9 +29,11 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GR0Q_API_KEY }}
           GROQ_MODEL: llama-3.3-70b-versatile
-          MAX_ITEMS_PER_RUN: "25"
+          # 50 items por run x cada 5min = 600 items/hora
+          # Groq free: 30 req/min, 6000 tokens/min — rate limiter interno maneja el throttle
+          MAX_ITEMS_PER_RUN: "50"
           CONFIDENCE_THRESHOLD_ANOMALY: "0.60"
           LOG_LEVEL: INFO
         run: python -m scripts.detective.main
