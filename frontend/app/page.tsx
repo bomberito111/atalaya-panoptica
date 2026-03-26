@@ -81,7 +81,7 @@ const FUENTES = [
   { label: "SERVEL",           icon: "🗳️", desc: "Financiamiento electoral" },
   { label: "DIPRES",           icon: "💼", desc: "Presupuesto nacional" },
   { label: "30+ Medios RSS",   icon: "📡", desc: "Prensa nacional e internacional" },
-  { label: "DuckDuckGo",       icon: "🔍", desc: "Búsqueda web ampliada sobre Chile" },
+  { label: "Bing News RSS",     icon: "🔍", desc: "Búsqueda web ampliada sobre Chile" },
   { label: "Reddit Chile",     icon: "💬", desc: "Conversaciones ciudadanas" },
   { label: "Medios Investigados", icon: "🔬", desc: "Ownership y conflictos en prensa" },
 ];
@@ -145,6 +145,15 @@ export default function Dashboard() {
         setLoading(false);
       }
     );
+
+    // Auto-refresh stats and anomalies every 60 seconds
+    const interval = setInterval(() => {
+      Promise.all([getStats(), getAnomalies(0.6)]).then(([s, a]) => {
+        setStats(s);
+        setAnomalies(a.slice(0, 6));
+      });
+    }, 60_000);
+    return () => clearInterval(interval);
   }, []);
 
   const hasData = stats.totalNodes > 0 || stats.totalAnomalies > 0;
@@ -161,7 +170,7 @@ export default function Dashboard() {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500" />
             </span>
-            <span className="text-xs text-green-400 font-mono">SISTEMA ACTIVO — actualiza cada 12h</span>
+            <span className="text-xs text-green-400 font-mono">SISTEMA ACTIVO — actualiza automáticamente cada 2h • datos en tiempo real</span>
           </div>
 
           <h1 className="text-4xl sm:text-5xl font-bold text-white tracking-tight leading-tight">
