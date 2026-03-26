@@ -234,32 +234,33 @@ def search_duckduckgo(query: str, max_results: int = 10) -> list[dict]:
         return []
 
 
-def search_duckduckgo_html(query: str, max_results: int = 10) -> list[dict]:
-    """Búsqueda DuckDuckGo HTML (más resultados que la API JSON)."""
+def search_bing_news_rss(query: str, max_results: int = 10) -> list[dict]:
+    """Búsqueda Bing News RSS (sin API key, excelente cobertura de noticias chilenas)."""
     try:
+        encoded_query = quote_plus(query)
+        rss_url = (
+            f"https://www.bing.com/news/search"
+            f"?q={encoded_query}&format=rss&cc=CL&mkt=es-CL&setlang=es-CL"
+        )
         headers = {
             "User-Agent": "Mozilla/5.0 (compatible; AtalayaBot/1.0; +https://github.com/bomberito111/atalaya-panoptica)"
         }
-        params = {"q": query, "kl": "cl-es", "kp": "-1"}
-        with httpx.Client(timeout=15, follow_redirects=True, headers=headers) as client:
-            resp = client.get("https://html.duckduckgo.com/html/", params=params)
+        with httpx.Client(timeout=20, follow_redirects=True, headers=headers) as client:
+            resp = client.get(rss_url)
+            resp.raise_for_status()
 
-        from bs4 import BeautifulSoup
-        soup = BeautifulSoup(resp.text, "html.parser")
+        feed = feedparser.parse(resp.text)
         results = []
-        for result in soup.select(".result__body")[:max_results]:
-            title_el = result.select_one(".result__title")
-            snippet_el = result.select_one(".result__snippet")
-            url_el = result.select_one(".result__url")
-            if title_el:
-                results.append({
-                    "title": title_el.get_text(strip=True),
-                    "url": url_el.get_text(strip=True) if url_el else "",
-                    "snippet": snippet_el.get_text(strip=True) if snippet_el else "",
-                })
+        for entry in feed.entries[:max_results]:
+            results.append({
+                "title": entry.get("title", ""),
+                "url": entry.get("link", ""),
+                "snippet": entry.get("summary", entry.get("title", "")),
+                "published": entry.get("published", ""),
+            })
         return results
     except Exception as e:
-        logger.warning(f"DuckDuckGo HTML error para '{query}': {e}")
+        logger.warning(f"Bing News RSS error para '{query}': {e}")
         return []
 
 
@@ -360,9 +361,10 @@ def run():
     logger.info("Búsqueda web: rastreando internet relacionada con Chile...")
     all_items = []
 
-    # 1. Google News RSS — queries prioritarias de corrupción y casos emblemáticos
-    logger.info("Google News RSS: procesando queries prioritarias...")
-    for query in GOOGLE_NEWS_PRIORITY_QUERIES:
+    # 1. Google News RSS — TODAS las queries de corrupción (no solo prioritarias)
+    logger.info("Google News RSS: procesando todas las queries...")
+    all_gnews_queries = list(dict.fromkeys(GOOGLE_NEWS_PRIORITY_QUERIES + SEARCH_QUERIES))
+    for query in all_gnews_queries:
         SCRAPER_LIMITER.consume()
         results = search_google_news_rss(query, max_results=10)
         logger.info(f"  GNews '{query[:50]}...': {len(results)} resultados")
@@ -380,26 +382,27 @@ def run():
                 },
                 "priority": 3,
             })
-        polite_sleep(2.0, 4.0)
+        polite_sleep(1.5, 3.0)
 
-    # 2. DuckDuckGo — TODAS las queries de corrupción (max datos posible)
-    logger.info("DuckDuckGo: procesando todas las queries...")
-    for query in SEARCH_QUERIES:
+    # 2. Bing News RSS — mismas queries para mayor cobertura
+    logger.info("Bing News RSS: procesando queries prioritarias...")
+    for query in GOOGLE_NEWS_PRIORITY_QUERIES:  # Solo prioritarias para no duplicar
         SCRAPER_LIMITER.consume()
-        results = search_duckduckgo_html(query, max_results=15)
-        logger.info(f"  DDG '{query[:40]}...': {len(results)} resultados")
+        results = search_bing_news_rss(query, max_results=10)
+        logger.info(f"  Bing '{query[:50]}...': {len(results)} resultados")
 
         for r in results:
             all_items.append({
-                "source": "busqueda_duckduckgo",
-                "raw_text": result_to_text(r, "DuckDuckGo", query),
-                "source_url": r.get("url") or f"https://duckduckgo.com/?q={query}",
+                "source": "bing_news_rss",
+                "raw_text": result_to_text_news(r, query),
+                "source_url": r.get("url") or f"https://www.bing.com/news/search?q={query}",
                 "raw_metadata": {
                     "query": query,
                     "titulo": r.get("title"),
-                    "motor": "duckduckgo",
+                    "published": r.get("published"),
+                    "motor": "bing_news_rss",
                 },
-                "priority": 4,
+                "priority": 3,
             })
         polite_sleep(1.5, 3.0)
 

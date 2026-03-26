@@ -13,46 +13,31 @@ logger = logging.getLogger(__name__)
 
 # RSS feeds de medios chilenos — cobertura amplia: prensa, radio, TV, digital, regional
 RSS_FEEDS = {
-    # --- Investigación y política ---
+    # --- Investigación y política (feeds verificados activos) ---
     "ciper":                "https://ciperchile.cl/feed/",
-    "interferencia":        "https://interferencia.cl/feed/",
     "labot":                "https://www.labot.cl/feed/",
     "radio_uchile":         "https://radio.uchile.cl/feed/",
-
-    # --- Medios nacionales generalistas ---
-    "el_mostrador":         "https://www.elmostrador.cl/feed/",
-    "la_tercera_politica":  "https://www.latercera.com/politica/feed/",
-    "la_tercera":           "https://www.latercera.com/feed/",
-    "emol_nacional":        "https://www.emol.com/rss/nacional.xml",
-    "emol_economia":        "https://www.emol.com/rss/economia.xml",
-    "biobio_nacional":      "https://www.biobiochile.cl/lista/categorias/nacional/feed",
-    "biobio_politica":      "https://www.biobiochile.cl/lista/categorias/pais/politica/feed",
-    "la_segunda":           "https://www.lasegunda.com/rss/",
-    "cooperativa":          "https://www.cooperativa.cl/noticias/rss/categoria/pais.xml",
-    "tele13":               "https://www.t13.cl/rss.xml",
-    "24horas":              "https://www.24horas.cl/rss.xml",
-    "meganoticias":         "https://www.meganoticias.cl/rss.xml",
-    "df":                   "https://www.df.cl/rss.xml",
-
-    # --- Medios digitales y alternativos ---
-    "el_desconcierto":      "https://www.eldesconcierto.cl/feed/",
     "el_ciudadano":         "https://www.elciudadano.com/feed/",
+    "el_desconcierto":      "https://www.eldesconcierto.cl/feed/",
     "resumen_chile":        "https://resumen.cl/feed/",
-    "radio_zero":           "https://www.radiozero.cl/feed/",
+
+    # --- Medios nacionales (URLs corregidas) ---
+    "el_mostrador":         "https://www.elmostrador.cl/noticias/pais/feed/",
+    "biobio":               "https://www.biobiochile.cl/feed/",
+    "cooperativa_pais":     "https://cooperativa.cl/noticias/rss.xml",
+    "tele13_noticias":      "https://www.t13.cl/feed",
+    "la_tercera":           "https://www.latercera.com/feed/",
+
+    # --- Medios digitales ---
     "pauta":                "https://www.pauta.cl/feed/",
+    "radio_zero":           "https://www.radiozero.cl/feed/",
 
-    # --- Regionales (cubren corrupción municipal) ---
-    "el_rancagüino":        "https://www.elrancaguino.cl/feed/",
+    # --- Regionales ---
+    "el_rancaguino":        "https://www.elrancaguino.cl/feed/",
     "la_discusion":         "https://www.ladiscusion.cl/feed/",
-    "estrella_iquique":     "https://www.estrellaiquique.cl/feed/",
 
-    # --- Economía y finanzas (contratos, licitaciones) ---
-    "pulso":                "https://www.pulso.cl/rss.xml",
-    "estrategia":           "https://www.estrategia.cl/rss.xml",
-
-    # --- Internacional sobre Chile ---
+    # --- Internacional ---
     "bbc_espanol":          "https://feeds.bbci.co.uk/mundo/rss.xml",
-    "reuters_latam":        "https://feeds.reuters.com/reuters/MXdomesticNews",
 }
 
 # Palabras clave — corrupción + poder + economía + sociedad
