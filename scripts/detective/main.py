@@ -11,6 +11,7 @@ import os
 import sys
 import logging
 from dotenv import load_dotenv
+from dateutil import parser as dateutil_parser
 
 load_dotenv()
 
@@ -29,7 +30,32 @@ from scripts.detective.bot_hunter import analyze_for_bots
 from scripts.detective.fake_news_detector import check_claim
 from scripts.detective.web_researcher import enrich_anomaly_context
 from scripts.detective.post_generator import maybe_generate_and_save_post
+from scripts.detective.investigador import run as investigador_run
 from scripts.utils.supabase_client import get_client as _db
+
+
+def normalize_event_date(raw: str) -> str:
+    """
+    Normaliza cualquier formato de fecha a YYYY-MM-DD.
+    Maneja: RFC 2822 (RSS feeds), ISO 8601, formatos en español, timestamps, etc.
+    Ej: "Thu, 14 Mar 2024 10:30:00 GMT" → "2024-03-14"
+        "2025-01-20T15:00:00Z"          → "2025-01-20"
+    Returns "" si no puede parsear.
+    """
+    if not raw or not isinstance(raw, str):
+        return ""
+    raw = raw.strip()
+    if not raw or len(raw) < 4:
+        return ""
+    # Ya está en formato YYYY-MM-DD
+    if len(raw) >= 10 and raw[4:5] == "-" and raw[7:8] == "-":
+        return raw[:10]
+    try:
+        parsed = dateutil_parser.parse(raw, ignoretz=True)
+        return parsed.strftime("%Y-%m-%d")
+    except Exception:
+        # Último recurso: tomar los primeros 10 caracteres si parecen fecha
+        return raw[:10] if len(raw) >= 10 else ""
 
 
 def process_item(item: dict) -> bool:
@@ -45,15 +71,16 @@ def process_item(item: dict) -> bool:
     metadata = item.get("raw_metadata", {}) or {}
     source_url = item.get("source_url")
 
-    # Extraer fecha real del evento (publicación noticia, fecha contrato, etc.)
+    # Extraer y NORMALIZAR la fecha real del evento a YYYY-MM-DD
     # Prioridad: fecha del contrato/licitación > fecha publicación RSS > fecha creación ítem
-    event_date = (
-        metadata.get("fecha")          # Mercado Público: fecha licitación
-        or metadata.get("published")   # RSS feeds: fecha publicación noticia
+    raw_date = (
+        metadata.get("fecha")              # Mercado Público: fecha licitación
+        or metadata.get("published")       # RSS feeds (RFC 2822: "Thu, 14 Mar 2024...")
         or metadata.get("fecha_publicacion")
         or metadata.get("date")
-        or item.get("created_at", "")[:10]  # fallback: cuándo llegó a la cola
+        or ""
     )
+    event_date = normalize_event_date(raw_date) or item.get("created_at", "")[:10]
 
     logger.info(f"Procesando ítem {item_id} [{source}]: {source_url or 'sin URL'} | fecha_evento={event_date or 'N/A'}")
 
@@ -198,6 +225,16 @@ def main():
     logger.info(
         f"El Detective finalizado: {processed} exitosos, {errors} errores de {processed + errors} procesados"
     )
+
+    # ── Investigador Automático ────────────────────────────────────────────────
+    # Después de procesar la cola, investigar las anomalías más importantes en profundidad
+    if processed > 0:
+        try:
+            max_investigar = int(os.environ.get("MAX_INVESTIGACIONES_POR_RUN", "2"))
+            informes = investigador_run(max_anomalias=max_investigar)
+            logger.info(f"Investigador automático: {informes} informes generados")
+        except Exception as inv_err:
+            logger.warning(f"Investigador automático falló (no crítico): {inv_err}")
 
     # Exit code non-zero si hubo errores (para notificación en GitHub Actions)
     if errors > 0 and processed == 0:

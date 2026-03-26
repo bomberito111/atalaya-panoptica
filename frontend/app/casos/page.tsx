@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { getAnomalies, type Anomaly } from "@/lib/supabase";
+import CasoModal from "@/components/CasoModal";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -192,6 +193,7 @@ export default function CasosPage() {
   const [busqueda, setBusqueda] = useState("");
   const [visible, setVisible] = useState(20);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+  const [modalAnomaly, setModalAnomaly] = useState<Anomaly | null>(null);
 
   const cargar = useCallback(async () => {
     const raw = await getAnomalies(0.4); // umbral más bajo para mostrar más casos
@@ -323,9 +325,12 @@ export default function CasosPage() {
         </div>
       ) : (
         <>
+          <p className="text-xs text-gray-600 mb-2">Haz clic en cualquier caso para ver la investigación completa</p>
           <div className="space-y-4">
             {visibles.map((a, i) => (
-              <CasoRow key={a.id} a={a} idx={i} />
+              <div key={a.id} onClick={() => setModalAnomaly(a)} className="cursor-pointer">
+                <CasoRow a={a} idx={i} />
+              </div>
             ))}
           </div>
 
@@ -347,6 +352,11 @@ export default function CasosPage() {
             </p>
           )}
         </>
+      )}
+
+      {/* Modal de caso completo */}
+      {modalAnomaly && (
+        <CasoModal anomaly={modalAnomaly} onClose={() => setModalAnomaly(null)} />
       )}
 
       {/* CTA denunciar */}

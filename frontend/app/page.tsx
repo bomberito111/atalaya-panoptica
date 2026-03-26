@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { getAnomalies, getStats, type Anomaly } from "@/lib/supabase";
+import CasoModal from "@/components/CasoModal";
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
@@ -170,6 +171,7 @@ export default function HomePage() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [toast, setToast]       = useState<string | null>(null);
   const [visible, setVisible]   = useState(10);
+  const [modalAnomaly, setModalAnomaly] = useState<Anomaly | null>(null);
 
   const cargar = useCallback(async () => {
     const [s, raw] = await Promise.all([getStats(), getAnomalies(0.5)]);
@@ -290,7 +292,9 @@ export default function HomePage() {
               {filtrados.length} caso{filtrados.length !== 1 ? "s" : ""} · ordenados por fecha del hecho
             </p>
             {filtrados.slice(0, visible).map(a => (
-              <CasoCard key={a.id} a={a} onShare={handleShare} />
+              <div key={a.id} onClick={() => setModalAnomaly(a)} className="cursor-pointer">
+                <CasoCard a={a} onShare={handleShare} />
+              </div>
             ))}
             {visible < filtrados.length && (
               <button
@@ -358,6 +362,11 @@ export default function HomePage() {
         <div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-sm px-5 py-2.5 rounded-full shadow-xl border border-gray-700 z-50">
           {toast}
         </div>
+      )}
+
+      {/* ── Modal de caso completo ── */}
+      {modalAnomaly && (
+        <CasoModal anomaly={modalAnomaly} onClose={() => setModalAnomaly(null)} />
       )}
     </div>
   );

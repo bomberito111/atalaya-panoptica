@@ -24,8 +24,9 @@ export const metadata: Metadata = {
 const NAV_LINKS = [
   { href: "/", label: "Inicio" },
   { href: "/casos/", label: "🚨 Casos" },
-  { href: "/ayudanos/", label: "📢 Denunciar" },
-  { href: "/red-corrupcion/", label: "ℹ️ Cómo funciona" },
+  { href: "/pared/", label: "🕸 Red" },
+  { href: "/promesas/", label: "📋 Promesas" },
+  { href: "/fake-news/", label: "📰 Fake News" },
 ];
 
 export default function RootLayout({
