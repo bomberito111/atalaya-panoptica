@@ -3,11 +3,14 @@ ATALAYA PANÓPTICA — Scraper: Mercado Público
 Extrae licitaciones públicas via API REST oficial de Mercado Público.
 API docs: https://www.mercadopublico.cl/Procurement/Modules/RFB/Utils/AdvancedSearch.aspx
 
-Sin API Key requerida para búsquedas básicas.
+Requiere MERCADO_PUBLICO_TICKET (ticket de API gratuito — registrarse en mercadopublico.cl).
+Si no está configurado, usa el feed RSS público como fallback.
 """
 
+import os
 import logging
 import httpx
+import feedparser
 from datetime import datetime, timedelta
 from scripts.rastreador.queue_manager import enqueue_batch
 from scripts.utils.rate_limiter import MERCADO_PUBLICO_LIMITER, polite_sleep
@@ -15,14 +18,40 @@ from scripts.utils.rate_limiter import MERCADO_PUBLICO_LIMITER, polite_sleep
 logger = logging.getLogger(__name__)
 
 BASE_URL = "https://api.mercadopublico.cl/servicios/v1/publico/licitaciones.json"
+RSS_URL = "https://www.mercadopublico.cl/Procurement/Modules/RFB/RSSFeed.aspx"
+
+TICKET = os.environ.get("MERCADO_PUBLICO_TICKET", "")
 
 # Tipos de licitación de mayor riesgo (montos altos)
 HIGH_RISK_TYPES = ["L1", "LE", "LP", "LQ", "LR"]  # Licitaciones públicas grandes
 
 
+def fetch_licitaciones_rss() -> list[dict]:
+    """Fallback: obtiene licitaciones recientes via RSS público (sin ticket)."""
+    try:
+        feed = feedparser.parse(RSS_URL)
+        items = []
+        for entry in feed.entries[:50]:
+            items.append({
+                "CodigoExterno": entry.get("id", ""),
+                "Nombre": entry.get("title", ""),
+                "Estado": "publicada",
+                "NombreOrganismo": entry.get("author", ""),
+                "Descripcion": entry.get("summary", ""),
+                "FechaPublicacion": entry.get("published", ""),
+                "link": entry.get("link", ""),
+            })
+        logger.info(f"RSS Mercado Público: {len(items)} licitaciones (sin ticket)")
+        return items
+    except Exception as e:
+        logger.warning(f"RSS Mercado Público falló: {e}")
+        return []
+
+
 def fetch_licitaciones(fecha_desde: str, fecha_hasta: str, tipo: str = "L1") -> list[dict]:
     """
-    Consulta licitaciones entre dos fechas.
+    Consulta licitaciones entre dos fechas via API (requiere ticket).
+    Sin ticket: devuelve lista vacía silenciosamente.
 
     Args:
         fecha_desde: Formato DD-MM-AAAA
@@ -32,7 +61,11 @@ def fetch_licitaciones(fecha_desde: str, fecha_hasta: str, tipo: str = "L1") -> 
     Returns:
         Lista de licitaciones como dicts
     """
+    if not TICKET:
+        return []  # Sin ticket la API devuelve 400 — saltar silenciosamente
+
     params = {
+        "ticket": TICKET,
         "fecha": fecha_desde,
         "fechaFin": fecha_hasta,
         "tipo": tipo,
@@ -92,8 +125,26 @@ Monto adjudicado: {lic.get('MontoAdjudicado', '')}
 def run(days_back: int = 1):
     """
     Entry point del scraper de Mercado Público.
-    Extrae licitaciones de los últimos N días y las encola.
+    Con ticket: usa API REST con filtros por fecha/tipo.
+    Sin ticket: usa RSS feed público como fallback.
     """
+    if not TICKET:
+        logger.warning("MERCADO_PUBLICO_TICKET no configurado — usando RSS feed como fallback")
+        rss_items = fetch_licitaciones_rss()
+        all_items = []
+        for lic in rss_items:
+            url = lic.get("link") or f"https://www.mercadopublico.cl/Procurement/Modules/RFB/DetailsAcquisition.aspx?qs={lic.get('CodigoExterno', '')}"
+            all_items.append({
+                "source": "mercado_publico",
+                "raw_text": licitacion_to_text(lic),
+                "source_url": url,
+                "raw_metadata": {"tipo": "RSS", "organismo": lic.get("NombreOrganismo"), "fecha": lic.get("FechaPublicacion")},
+                "priority": 4,
+            })
+        inserted, dupes = enqueue_batch(all_items)
+        logger.info(f"Mercado Público RSS: {inserted} nuevas, {dupes} duplicadas")
+        return
+
     fecha_hasta = datetime.now()
     fecha_desde = fecha_hasta - timedelta(days=days_back)
 
