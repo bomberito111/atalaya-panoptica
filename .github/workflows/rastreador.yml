@@ -30,6 +30,8 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           LOG_LEVEL: INFO
+          PYTHONIOENCODING: utf-8
+          PYTHONUTF8: "1"
         run: |
           echo "=== Mercado Publico ==="
           python -m scripts.rastreador.fuentes_estatales.mercado_publico || true
@@ -66,6 +68,8 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           LOG_LEVEL: INFO
+          PYTHONIOENCODING: utf-8
+          PYTHONUTF8: "1"
         run: |
           echo "=== Medios de Prensa RSS ==="
           python -m scripts.rastreador.fuentes_web.medios_prensa || true
