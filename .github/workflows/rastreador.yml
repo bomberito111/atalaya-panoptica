@@ -55,6 +55,12 @@ jobs:
           echo "=== Medios Investigados ==="
           python -m scripts.rastreador.fuentes_estatales.medios_investigados || true
 
+          echo "=== Hospitales y FONASA ==="
+          python -m scripts.rastreador.fuentes_estatales.hospitales || true
+
+          echo "=== Municipios (346) ==="
+          python -m scripts.rastreador.fuentes_estatales.municipios || true
+
       - name: Ejecutar rastreador - Fuentes Web y RRSS
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -64,7 +70,7 @@ jobs:
           echo "=== Medios de Prensa RSS ==="
           python -m scripts.rastreador.fuentes_web.medios_prensa || true
 
-          echo "=== Busqueda Web DuckDuckGo + Reddit Chile ==="
+          echo "=== Busqueda Web DuckDuckGo + Google News + Reddit ==="
           python -m scripts.rastreador.fuentes_web.busqueda_web || true
 
           echo "=== Twitter/X via Nitter ==="
