@@ -81,6 +81,26 @@ export interface Promesa {
   verified_at: string;
 }
 
+// ── Helper: fecha del evento real (no cuándo se detectó) ────────────────────
+
+/**
+ * Devuelve la fecha del hecho real (publicación, firma del contrato, etc.)
+ * en vez de la fecha en que el Detective lo procesó.
+ * La fecha real viene en evidence.fecha_evento (guardada por el Detective).
+ */
+export function getEventDate(
+  item: { created_at: string; evidence?: Record<string, unknown> },
+  options: { day?: "numeric"; month?: "short" | "long"; year?: "numeric" | "2-digit" } = { day: "numeric", month: "short", year: "numeric" }
+): string {
+  const raw = item.evidence?.fecha_evento as string | undefined;
+  const dateStr = raw && raw.length >= 4 ? raw : item.created_at;
+  try {
+    return new Date(dateStr).toLocaleDateString("es-CL", options);
+  } catch {
+    return new Date(item.created_at).toLocaleDateString("es-CL", options);
+  }
+}
+
 // ── Funciones de consulta ───────────────────────────────────────────────────
 
 export async function getNodes(limit = 200): Promise<Node[]> {

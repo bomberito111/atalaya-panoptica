@@ -80,6 +80,7 @@ def detect_anomalies(
     entities: dict,
     source_url: str = None,
     queue_item_id: str = None,
+    event_date: str = None,   # Fecha real del evento (publicación de la noticia, firma del contrato, etc.)
 ) -> list[str]:
     """
     Analiza un texto en busca de anomalías de corrupción.
@@ -131,6 +132,8 @@ def detect_anomalies(
                 "recomendacion": anomalia.get("recomendacion", ""),
                 "source_url": source_url,
                 "entidades_nombradas": anomalia.get("entidades_involucradas", []),
+                # Fecha real del evento (cuando ocurrió/se publicó, no cuando se detectó)
+                "fecha_evento": event_date,
             },
             "status": "activa",
             "queue_item_id": queue_item_id,

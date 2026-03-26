@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
-import { getNodes, getEdges, getAnomalies, type Node, type Edge, type Anomaly } from "@/lib/supabase";
+import { getNodes, getEdges, getAnomalies, getEventDate, type Node, type Edge, type Anomaly } from "@/lib/supabase";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -177,7 +177,11 @@ function NodeCard({
   const pct   = Math.round(node.risk_score * 100);
   const hi    = node.risk_score > 0.7;
   const emoji = NODE_EMOJI[node.node_type] ?? "❓";
-  const date  = new Date(node.created_at).toLocaleDateString("es-CL", { day: "numeric", month: "short", year: "2-digit" });
+  // Fecha del evento real (de la noticia/contrato), no cuándo se añadió a la DB
+  const eventDate = node.metadata?.fecha_publicacion as string | undefined
+    || node.metadata?.fecha as string | undefined
+    || node.created_at;
+  const date = new Date(eventDate).toLocaleDateString("es-CL", { day: "numeric", month: "short", year: "2-digit" });
 
   return (
     <div
@@ -351,7 +355,10 @@ function SidePanel({
                   </div>
                   <p style={{ fontSize: 11, color: "#fca5a5", margin: 0, lineHeight: 1.4 }}>{an.description}</p>
                   <div style={{ fontSize: 9, color: "#64748b", marginTop: 4 }}>
-                    {new Date(an.created_at).toLocaleDateString("es-CL", { day: "numeric", month: "long", year: "numeric" })}
+                    📅 {getEventDate(an, { day: "numeric", month: "long", year: "numeric" })}
+                    {typeof an.evidence?.fecha_evento === "string" && an.evidence.fecha_evento !== an.created_at.slice(0,10) && (
+                      <span style={{ color: "#475569", marginLeft: 6 }}>(detectado: {new Date(an.created_at).toLocaleDateString("es-CL")})</span>
+                    )}
                   </div>
                 </div>
               ))}

@@ -6,6 +6,7 @@ import {
   getStats,
   getAnomalies,
   getManipulationAlerts,
+  getEventDate,
   type Anomaly,
   type ManipulationAlert,
 } from "@/lib/supabase";
@@ -286,10 +287,8 @@ export default function Dashboard() {
               >
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <TypeBadge type={a.anomaly_type} />
-                  <span className="text-xs text-gray-600">
-                    {new Date(a.created_at).toLocaleDateString("es-CL", {
-                      day: "numeric", month: "short", year: "numeric",
-                    })}
+                  <span className="text-xs text-gray-600" title={`Detectado: ${new Date(a.created_at).toLocaleDateString("es-CL")}`}>
+                    📅 {getEventDate(a)}
                   </span>
                 </div>
                 <p className="text-gray-300 text-sm leading-relaxed">{a.description}</p>

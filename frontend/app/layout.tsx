@@ -24,9 +24,9 @@ export const metadata: Metadata = {
 const NAV_LINKS = [
   { href: "/", label: "Inicio" },
   { href: "/ayudanos/", label: "🚨 Denuncia" },
-  { href: "/red-corrupcion/", label: "🕵️ Red" },
-  { href: "/grafo/", label: "🕸️ Grafo" },
-  { href: "/pared/", label: "🧵 Pared" },
+  { href: "/pared/", label: "🕸️ Mapa Corrupción" },
+  { href: "/red-corrupcion/", label: "🕵️ Red de Casos" },
+  { href: "/grafo/", label: "📊 Grafo" },
   { href: "/muro-realidad/", label: "⚖️ Promesas" },
   { href: "/radar/", label: "📡 Radar" },
   { href: "/publicaciones/", label: "📢 Posts IA" },

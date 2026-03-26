@@ -42,10 +42,20 @@ def process_item(item: dict) -> bool:
     item_id = item["id"]
     source = item.get("source", "")
     text = item.get("raw_text", "")
-    metadata = item.get("raw_metadata", {})
+    metadata = item.get("raw_metadata", {}) or {}
     source_url = item.get("source_url")
 
-    logger.info(f"Procesando ítem {item_id} [{source}]: {source_url or 'sin URL'}")
+    # Extraer fecha real del evento (publicación noticia, fecha contrato, etc.)
+    # Prioridad: fecha del contrato/licitación > fecha publicación RSS > fecha creación ítem
+    event_date = (
+        metadata.get("fecha")          # Mercado Público: fecha licitación
+        or metadata.get("published")   # RSS feeds: fecha publicación noticia
+        or metadata.get("fecha_publicacion")
+        or metadata.get("date")
+        or item.get("created_at", "")[:10]  # fallback: cuándo llegó a la cola
+    )
+
+    logger.info(f"Procesando ítem {item_id} [{source}]: {source_url or 'sin URL'} | fecha_evento={event_date or 'N/A'}")
 
     try:
         # ── Paso 1: Extraer entidades ──────────────────────────────────────
@@ -80,6 +90,7 @@ def process_item(item: dict) -> bool:
             entities=entities,
             source_url=source_url,
             queue_item_id=item_id,
+            event_date=event_date,   # Fecha real del hecho, no de detección
         )
 
         # ── Paso 4b: Verificar anomalías en internet ────────────────────────
