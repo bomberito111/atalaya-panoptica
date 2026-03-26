@@ -63,6 +63,9 @@ jobs:
           echo "=== Municipios (346) ==="
           python -m scripts.rastreador.fuentes_estatales.municipios || true
 
+          echo "=== ANÁLISIS PROPIO (contratos, transferencias, transparencia, Contraloría) ==="
+          python -m scripts.rastreador.fuentes_estatales.analisis_contratos || true
+
       - name: Ejecutar rastreador - Fuentes Web y RRSS
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
