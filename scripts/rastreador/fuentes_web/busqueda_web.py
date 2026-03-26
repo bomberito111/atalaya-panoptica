@@ -306,17 +306,13 @@ def fetch_reddit_subreddit(subreddit: str, keyword: str, limit: int = 25) -> lis
     """Fetch posts de Reddit con keyword en subreddit (JSON API pública)."""
     try:
         headers = {
-            "User-Agent": "AtalayaBot/1.0 (anticorrupción Chile; contact: github.com/bomberito111)"
+            "User-Agent": "AtalayaBot/1.0 (anticorrupcion Chile; contact: github.com/bomberito111)"
         }
-        url = "https://www.reddit.com/search.json"
-        params = {
-            "q": f"{keyword} subreddit:{subreddit.replace('r/', '')}",
-            "sort": "new",
-            "limit": limit,
-            "t": "month",
-        }
+        # URL-encode query manualmente para evitar errores ASCII con acentos
+        q = quote_plus(f"{keyword} subreddit:{subreddit.replace('r/', '')}")
+        url = f"https://www.reddit.com/search.json?q={q}&sort=new&limit={limit}&t=month"
         with httpx.Client(timeout=15, follow_redirects=True, headers=headers) as client:
-            resp = client.get(url, params=params)
+            resp = client.get(url)
             data = resp.json()
 
         posts = []
