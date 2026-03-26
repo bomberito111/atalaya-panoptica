@@ -2,7 +2,8 @@ name: "El Rastreador (Productor)"
 
 on:
   schedule:
-    - cron: '0 */12 * * *'
+    # Cada 2 horas — maximiza datos frescos sin exceder costos
+    - cron: '0 */2 * * *'
   workflow_dispatch:
 
 jobs:
