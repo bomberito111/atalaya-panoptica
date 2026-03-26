@@ -88,18 +88,36 @@ def extract_date_from_text(text: str) -> str:
     return ""
 
 
+def _fecha_sospechosa(fecha_evento: str, created_at: str) -> bool:
+    """
+    Devuelve True si fecha_evento parece ser la fecha de procesamiento (created_at)
+    y no la fecha real del evento.
+    Heurística: si fecha_evento está dentro de los 2 días anteriores a created_at,
+    probablemente fue puesto como fallback incorrecto.
+    """
+    if not fecha_evento or not created_at:
+        return False
+    try:
+        from datetime import datetime, timedelta
+        fe = datetime.strptime(fecha_evento[:10], "%Y-%m-%d").date()
+        ca = datetime.strptime(created_at[:10], "%Y-%m-%d").date()
+        # Si fecha_evento está dentro de 2 días antes de created_at → sospechosa
+        return 0 <= (ca - fe).days <= 2
+    except Exception:
+        return False
+
+
 def fix_anomaly_dates(batch_size: int = 100) -> tuple[int, int]:
     """
-    Busca anomalías sin fecha de evento y las arregla.
+    Busca anomalías sin fecha de evento (o con fecha sospechosa = fecha de procesamiento)
+    e intenta encontrar la fecha real del hecho.
     Returns: (arregladas, sin_fecha_disponible)
     """
     db = get_client()
     arregladas = 0
     sin_fecha = 0
 
-    # 1. Obtener anomalías sin fecha_evento o con fecha vacía
-    # Filtramos con evidence->>'fecha_evento' IS NULL
-    logger.info("Buscando anomalías sin fecha de evento...")
+    logger.info("Buscando anomalías sin fecha real de evento...")
 
     resp = db.table("anomalies").select("id, evidence, queue_item_id, created_at").eq("status", "activa").limit(batch_size * 3).execute()
 
@@ -107,13 +125,17 @@ def fix_anomaly_dates(batch_size: int = 100) -> tuple[int, int]:
         logger.info("No hay anomalías para procesar")
         return 0, 0
 
-    # Filtrar las que tienen fecha_evento vacía o nula
+    # Filtrar las que tienen fecha_evento vacía/nula O que parecen ser fecha de procesamiento
     sin_fecha_ev = [
         a for a in resp.data
         if not (a.get("evidence") or {}).get("fecha_evento")
+        or _fecha_sospechosa(
+            str((a.get("evidence") or {}).get("fecha_evento", "") or ""),
+            a.get("created_at", "")
+        )
     ]
 
-    logger.info(f"Anomalías sin fecha_evento: {len(sin_fecha_ev)} de {len(resp.data)} totales")
+    logger.info(f"Anomalías a corregir: {len(sin_fecha_ev)} de {len(resp.data)} totales")
 
     # Obtener todos los queue_item_ids únicos
     queue_ids = list({
@@ -139,7 +161,6 @@ def fix_anomaly_dates(batch_size: int = 100) -> tuple[int, int]:
         aid = anomalia["id"]
         evidence = dict(anomalia.get("evidence") or {})
         queue_item_id = anomalia.get("queue_item_id")
-        fallback_date = anomalia.get("created_at", "")[:10]  # día en que el Detective procesó
 
         fecha_encontrada = ""
 

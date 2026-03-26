@@ -73,7 +73,10 @@ def process_item(item: dict) -> bool:
     source_url = item.get("source_url")
 
     # Extraer y NORMALIZAR la fecha real del evento a YYYY-MM-DD
-    # Prioridad: fecha del contrato/licitación > fecha publicación RSS > fecha creación ítem
+    # REGLA CRÍTICA: SOLO usar fechas que vengan de la fuente original.
+    # NUNCA usar created_at (fecha de procesamiento) como fecha del hecho.
+    # Si no hay fecha real disponible → dejar en blanco para que el
+    # frontend muestre "Fecha no disponible".
     raw_date = (
         metadata.get("fecha")              # Mercado Público: fecha licitación
         or metadata.get("published")       # RSS feeds (RFC 2822: "Thu, 14 Mar 2024...")
@@ -81,7 +84,7 @@ def process_item(item: dict) -> bool:
         or metadata.get("date")
         or ""
     )
-    event_date = normalize_event_date(raw_date) or item.get("created_at", "")[:10]
+    event_date = normalize_event_date(raw_date)  # "" si no hay fecha real — NO usar created_at
 
     logger.info(f"Procesando ítem {item_id} [{source}]: {source_url or 'sin URL'} | fecha_evento={event_date or 'N/A'}")
 
