@@ -2,267 +2,236 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
-import { getNodes, getEdges, type Node, type Edge } from "@/lib/supabase";
+import { getNodes, getEdges, getAnomalies, type Node, type Edge, type Anomaly } from "@/lib/supabase";
 
-// ── Types ────────────────────────────────────────────────────────────────────
+// ── Types ─────────────────────────────────────────────────────────────────────
 
-interface CanvasTransform {
-  x: number;
-  y: number;
-  scale: number;
-}
-
-interface NodePosition {
-  id: string;
-  x: number;
-  y: number;
-}
-
+interface CanvasTransform { x: number; y: number; scale: number }
+interface NodePosition { id: string; x: number; y: number }
 interface DragState {
   nodeId: string | null;
-  startMouseX: number;
-  startMouseY: number;
-  startNodeX: number;
-  startNodeY: number;
+  startMouseX: number; startMouseY: number;
+  startNodeX: number; startNodeY: number;
 }
 
-// ── Constants ────────────────────────────────────────────────────────────────
+interface RedCorrupcion {
+  id: string;           // "red-0", "red-1", ...
+  name: string;         // "Red SQM (12 nodos)"
+  anchorName: string;   // nombre del nodo más riesgoso (= nombre del caso)
+  nodeIds: Set<string>;
+  maxRisk: number;
+}
+
+// ── Constants ─────────────────────────────────────────────────────────────────
 
 const NODE_EMOJI: Record<string, string> = {
-  persona: "🧑",
-  empresa: "🏢",
-  institucion: "🏛",
-  contrato: "📄",
-  cuenta_social: "📱",
+  persona: "🧑", empresa: "🏢", institucion: "🏛", contrato: "📄", cuenta_social: "📱",
 };
 
 const RELATION_COLORS: Record<string, string> = {
-  conflicto_interes: "rgba(220, 38, 38, 0.75)",
-  firmó_contrato: "rgba(234, 88, 12, 0.75)",
-  firmo_contrato: "rgba(234, 88, 12, 0.75)",
-  financió_a: "rgba(202, 138, 4, 0.75)",
-  financio_a: "rgba(202, 138, 4, 0.75)",
-  lobbió_a: "rgba(147, 51, 234, 0.75)",
-  lobibo_a: "rgba(147, 51, 234, 0.75)",
-  default: "rgba(107, 114, 128, 0.65)",
+  conflicto_interes: "rgba(220,38,38,0.8)",
+  firmó_contrato:    "rgba(234,88,12,0.8)",
+  firmo_contrato:    "rgba(234,88,12,0.8)",
+  financió_a:        "rgba(202,138,4,0.8)",
+  financio_a:        "rgba(202,138,4,0.8)",
+  lobbió_a:          "rgba(147,51,234,0.8)",
+  lobibo_a:          "rgba(147,51,234,0.8)",
+  asociado_a:        "rgba(6,182,212,0.8)",
+  default:           "rgba(107,114,128,0.6)",
 };
 
-const NODE_TYPE_FILTERS = [
-  { value: "all", label: "Todos" },
-  { value: "persona", label: "🧑 Personas" },
-  { value: "empresa", label: "🏢 Empresas" },
-  { value: "institucion", label: "🏛 Instituciones" },
-  { value: "contrato", label: "📄 Contratos" },
-  { value: "cuenta_social", label: "📱 Cuentas" },
-];
+const NODE_WIDTH  = 160;
+const NODE_HEIGHT = 108;
+const INITIAL_SCALE = 0.9;
 
-const NODE_WIDTH = 160;
-const NODE_HEIGHT = 100;
-const INITIAL_SCALE = 0.8;
-const MAX_NODES = 200;
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function hashString(str: string): number {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = (hash << 5) - hash + char;
-    hash |= 0;
-  }
-  return Math.abs(hash);
+  let h = 0;
+  for (let i = 0; i < str.length; i++) { h = (h << 5) - h + str.charCodeAt(i); h |= 0; }
+  return Math.abs(h);
 }
 
-function getNodeRotation(nodeId: string): number {
-  const h = hashString(nodeId);
-  // Range: -4 to +4 degrees
-  return ((h % 9) - 4) * 0.8;
+function getNodeRotation(id: string): number {
+  return ((hashString(id) % 9) - 4) * 0.85;
 }
 
-function computeRadialLayout(nodes: Node[]): NodePosition[] {
-  if (nodes.length === 0) return [];
+function truncateName(name: string, maxLen = 24): string {
+  return name.length <= maxLen ? name : name.slice(0, maxLen - 1) + "…";
+}
 
-  const positions: NodePosition[] = [];
-  const centerX = 0;
-  const centerY = 0;
+function getEdgeColor(type: string): string {
+  const k = type.toLowerCase().replace(/\s+/g, "_");
+  return RELATION_COLORS[k] ?? RELATION_COLORS.default;
+}
 
-  if (nodes.length === 1) {
-    positions.push({ id: nodes[0].id, x: centerX, y: centerY });
-    return positions;
-  }
+// ── Find connected components (union-find) ────────────────────────────────────
 
-  // Place highest-risk node in center, rest radially
-  const sorted = [...nodes].sort((a, b) => b.risk_score - a.risk_score);
+function findConnectedComponents(nodes: Node[], edges: Edge[]): RedCorrupcion[] {
+  const parent = new Map<string, string>();
+  const find = (x: string): string => {
+    if (parent.get(x) !== x) parent.set(x, find(parent.get(x)!));
+    return parent.get(x)!;
+  };
+  const union = (a: string, b: string) => {
+    parent.set(find(a), find(b));
+  };
 
-  // First node at center
-  positions.push({ id: sorted[0].id, x: centerX, y: centerY });
-
-  // Remaining nodes in concentric rings
-  const ring1Count = Math.min(8, sorted.length - 1);
-  const ring2Count = Math.min(16, sorted.length - 1 - ring1Count);
-  const ring3Count = sorted.length - 1 - ring1Count - ring2Count;
-
-  const rings = [
-    { count: ring1Count, radius: 280 },
-    { count: ring2Count, radius: 520 },
-    { count: ring3Count, radius: 780 },
-  ];
-
-  let nodeIndex = 1;
-  for (const ring of rings) {
-    if (ring.count <= 0) continue;
-    for (let i = 0; i < ring.count && nodeIndex < sorted.length; i++) {
-      const angle = (i / ring.count) * 2 * Math.PI - Math.PI / 2;
-      const jitterX = ((hashString(sorted[nodeIndex].id + "x") % 40) - 20);
-      const jitterY = ((hashString(sorted[nodeIndex].id + "y") % 40) - 20);
-      positions.push({
-        id: sorted[nodeIndex].id,
-        x: centerX + Math.cos(angle) * ring.radius + jitterX,
-        y: centerY + Math.sin(angle) * ring.radius + jitterY,
-      });
-      nodeIndex++;
+  for (const n of nodes) parent.set(n.id, n.id);
+  for (const e of edges) {
+    if (parent.has(e.source_node_id) && parent.has(e.target_node_id)) {
+      union(e.source_node_id, e.target_node_id);
     }
   }
 
-  return positions;
+  // Group by root
+  const groups = new Map<string, string[]>();
+  for (const n of nodes) {
+    const root = find(n.id);
+    if (!groups.has(root)) groups.set(root, []);
+    groups.get(root)!.push(n.id);
+  }
+
+  const nodeById = new Map<string, Node>(nodes.map((n) => [n.id, n]));
+
+  // Convert to RedCorrupcion, sorted by max risk desc
+  const reds: RedCorrupcion[] = [];
+  let idx = 0;
+  for (const [, ids] of groups) {
+    if (ids.length < 2) continue; // skip isolated nodes
+    const members = ids.map((id) => nodeById.get(id)!).filter(Boolean);
+    const anchor = members.reduce((a, b) => (b.risk_score > a.risk_score ? b : a));
+    reds.push({
+      id: `red-${idx++}`,
+      name: `${anchor.canonical_name.slice(0, 28)} (${ids.length} entidades)`,
+      anchorName: anchor.canonical_name,
+      nodeIds: new Set(ids),
+      maxRisk: anchor.risk_score,
+    });
+  }
+
+  // Sort by maxRisk desc
+  reds.sort((a, b) => b.maxRisk - a.maxRisk);
+
+  // Add "isolated" group for lonely nodes
+  const allInReds = new Set(reds.flatMap((r) => [...r.nodeIds]));
+  const isolated = nodes.filter((n) => !allInReds.has(n.id));
+  if (isolated.length > 0) {
+    reds.push({
+      id: "red-isolated",
+      name: `Nodos sin conexión (${isolated.length})`,
+      anchorName: "Sin conexiones",
+      nodeIds: new Set(isolated.map((n) => n.id)),
+      maxRisk: 0,
+    });
+  }
+
+  return reds;
 }
 
-function getEdgeColor(relationType: string): string {
-  const normalized = relationType.toLowerCase().replace(/\s+/g, "_");
-  return RELATION_COLORS[normalized] ?? RELATION_COLORS.default;
+// ── Layout for a single network ────────────────────────────────────────────────
+
+function layoutNetwork(networkNodes: Node[]): Map<string, NodePosition> {
+  const map = new Map<string, NodePosition>();
+  if (networkNodes.length === 0) return map;
+
+  const sorted = [...networkNodes].sort((a, b) => b.risk_score - a.risk_score);
+  map.set(sorted[0].id, { id: sorted[0].id, x: 0, y: 0 });
+
+  const rings = [
+    { radius: 300, max: 8 },
+    { radius: 570, max: 16 },
+    { radius: 850, max: 32 },
+    { radius: 1100, max: 64 },
+  ];
+
+  let idx = 1;
+  for (const ring of rings) {
+    const count = Math.min(ring.max, sorted.length - idx);
+    if (count <= 0) break;
+    for (let i = 0; i < count && idx < sorted.length; i++, idx++) {
+      const angle = (i / count) * 2 * Math.PI - Math.PI / 2;
+      const jx = ((hashString(sorted[idx].id + "x") % 50) - 25);
+      const jy = ((hashString(sorted[idx].id + "y") % 50) - 25);
+      map.set(sorted[idx].id, {
+        id: sorted[idx].id,
+        x: Math.cos(angle) * ring.radius + jx,
+        y: Math.sin(angle) * ring.radius + jy,
+      });
+    }
+  }
+  return map;
 }
 
-function truncateName(name: string, maxLen = 22): string {
-  if (name.length <= maxLen) return name;
-  return name.slice(0, maxLen - 1) + "…";
-}
+// ── NodeCard component ─────────────────────────────────────────────────────────
 
-// ── Sub-components ───────────────────────────────────────────────────────────
-
-interface NodeCardProps {
-  node: Node;
-  position: NodePosition;
-  isSelected: boolean;
-  onMouseDown: (e: React.MouseEvent, nodeId: string) => void;
-  onClick: (node: Node) => void;
-}
-
-function NodeCard({ node, position, isSelected, onMouseDown, onClick }: NodeCardProps) {
-  const rotation = getNodeRotation(node.id);
-  const riskPct = Math.round(node.risk_score * 100);
-  const isHighRisk = node.risk_score > 0.7;
+function NodeCard({
+  node, pos, isSelected, isHighlighted,
+  onMouseDown, onClick,
+}: {
+  node: Node; pos: NodePosition; isSelected: boolean; isHighlighted: boolean;
+  onMouseDown: (e: React.MouseEvent, id: string) => void;
+  onClick: (n: Node) => void;
+}) {
+  const rot   = getNodeRotation(node.id);
+  const pct   = Math.round(node.risk_score * 100);
+  const hi    = node.risk_score > 0.7;
   const emoji = NODE_EMOJI[node.node_type] ?? "❓";
+  const date  = new Date(node.created_at).toLocaleDateString("es-CL", { day: "numeric", month: "short", year: "2-digit" });
 
   return (
     <div
+      data-node-card="1"
       onMouseDown={(e) => onMouseDown(e, node.id)}
       onClick={() => onClick(node)}
       style={{
         position: "absolute",
-        left: position.x - NODE_WIDTH / 2,
-        top: position.y - NODE_HEIGHT / 2,
+        left: pos.x - NODE_WIDTH / 2,
+        top: pos.y - NODE_HEIGHT / 2,
         width: NODE_WIDTH,
-        transform: `rotate(${rotation}deg)`,
+        transform: `rotate(${rot}deg)`,
         cursor: "grab",
         userSelect: "none",
-        zIndex: isSelected ? 100 : 1,
+        zIndex: isSelected ? 200 : isHighlighted ? 50 : 1,
+        opacity: isHighlighted || isSelected || !isHighlighted ? 1 : 0.45,
+        transition: "opacity 0.2s, box-shadow 0.2s",
       }}
     >
       {/* Pushpin */}
-      <div
-        style={{
-          position: "absolute",
-          top: -10,
-          left: "50%",
-          transform: "translateX(-50%)",
-          fontSize: 18,
-          zIndex: 10,
-          filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.4))",
-        }}
-      >
-        📌
-      </div>
+      <div style={{ position: "absolute", top: -12, left: "50%", transform: "translateX(-50%)", fontSize: 20, zIndex: 10, filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.4))" }}>📌</div>
 
-      {/* Card body */}
-      <div
-        style={{
-          backgroundColor: isHighRisk ? "#fff8f8" : "#fffef5",
-          border: isSelected
-            ? "2px solid #3b82f6"
-            : isHighRisk
-            ? "1px solid #fca5a5"
-            : "1px solid #d6c9a0",
-          borderRadius: 6,
-          padding: "10px 10px 8px",
-          boxShadow: isSelected
-            ? "0 0 0 2px rgba(59,130,246,0.4), 0 4px 12px rgba(0,0,0,0.25)"
-            : "2px 3px 8px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.8)",
-          marginTop: 8,
-          minHeight: NODE_HEIGHT - 8,
-        }}
-      >
-        {/* Type emoji + name */}
-        <div style={{ display: "flex", alignItems: "flex-start", gap: 5, marginBottom: 6 }}>
+      {/* Card */}
+      <div style={{
+        backgroundColor: hi ? "#fff8f8" : "#fffef4",
+        border: isSelected ? "2px solid #3b82f6" : hi ? "1.5px solid #fca5a5" : "1px solid #d6c9a0",
+        borderRadius: 7,
+        padding: "10px 10px 8px",
+        boxShadow: isSelected
+          ? "0 0 0 3px rgba(59,130,246,0.35), 0 6px 20px rgba(0,0,0,0.3)"
+          : hi
+          ? "2px 3px 10px rgba(220,38,38,0.18), 2px 3px 8px rgba(0,0,0,0.2)"
+          : "2px 3px 8px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.8)",
+        marginTop: 10,
+        minHeight: NODE_HEIGHT - 10,
+      }}>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 5, marginBottom: 5 }}>
           <span style={{ fontSize: 16, lineHeight: 1.2, flexShrink: 0 }}>{emoji}</span>
-          <span
-            style={{
-              fontSize: 11,
-              fontWeight: 700,
-              color: "#1c1917",
-              lineHeight: 1.3,
-              wordBreak: "break-word",
-              fontFamily: "system-ui, sans-serif",
-            }}
-          >
+          <span style={{ fontSize: 11, fontWeight: 700, color: "#1c1917", lineHeight: 1.3, wordBreak: "break-word", fontFamily: "system-ui, sans-serif" }}>
             {truncateName(node.canonical_name)}
           </span>
         </div>
-
-        {/* Risk thermometer bar */}
-        <div style={{ marginTop: 4 }}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: 3,
-            }}
-          >
-            <span style={{ fontSize: 9, color: "#78716c", fontFamily: "monospace" }}>
-              {node.node_type}
-            </span>
-            <span
-              style={{
-                fontSize: 10,
-                fontWeight: 700,
-                color: isHighRisk ? "#dc2626" : node.risk_score > 0.4 ? "#d97706" : "#6b7280",
-                fontFamily: "monospace",
-              }}
-            >
-              {riskPct}%
+        <div style={{ fontSize: 8.5, color: "#9ca3af", marginBottom: 3, fontFamily: "monospace" }}>
+          {node.node_type} · {date}
+        </div>
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+            <span style={{ fontSize: 9, color: "#78716c", fontFamily: "monospace" }}>riesgo</span>
+            <span style={{ fontSize: 10, fontWeight: 700, color: hi ? "#dc2626" : node.risk_score > 0.4 ? "#d97706" : "#6b7280", fontFamily: "monospace" }}>
+              {pct}%
             </span>
           </div>
-          <div
-            style={{
-              height: 4,
-              borderRadius: 2,
-              backgroundColor: "#e5e7eb",
-              overflow: "hidden",
-            }}
-          >
-            <div
-              style={{
-                height: "100%",
-                width: `${riskPct}%`,
-                borderRadius: 2,
-                backgroundColor: isHighRisk
-                  ? "#dc2626"
-                  : node.risk_score > 0.4
-                  ? "#f59e0b"
-                  : "#22c55e",
-                transition: "width 0.3s ease",
-              }}
-            />
+          <div style={{ height: 4, borderRadius: 2, backgroundColor: "#e5e7eb", overflow: "hidden" }}>
+            <div style={{ height: "100%", width: `${pct}%`, borderRadius: 2, backgroundColor: hi ? "#dc2626" : node.risk_score > 0.4 ? "#f59e0b" : "#22c55e", transition: "width 0.3s" }} />
           </div>
         </div>
       </div>
@@ -270,285 +239,169 @@ function NodeCard({ node, position, isSelected, onMouseDown, onClick }: NodeCard
   );
 }
 
-interface SidePanelProps {
-  node: Node;
-  edges: Edge[];
-  allNodes: Node[];
-  onClose: () => void;
-}
+// ── Full SidePanel ─────────────────────────────────────────────────────────────
 
-function SidePanel({ node, edges, allNodes, onClose }: SidePanelProps) {
-  const relatedEdges = edges.filter(
-    (e) => e.source_node_id === node.id || e.target_node_id === node.id
-  );
-
-  const getRelatedNode = (edge: Edge): Node | undefined => {
-    const otherId =
-      edge.source_node_id === node.id ? edge.target_node_id : edge.source_node_id;
-    return allNodes.find((n) => n.id === otherId);
-  };
-
-  const riskPct = Math.round(node.risk_score * 100);
-  const isHighRisk = node.risk_score > 0.7;
-  const emoji = NODE_EMOJI[node.node_type] ?? "❓";
+function SidePanel({
+  node, edges, allNodes, anomalies, onClose,
+}: {
+  node: Node; edges: Edge[]; allNodes: Node[]; anomalies: Anomaly[]; onClose: () => void;
+}) {
+  const relatedEdges = edges.filter((e) => e.source_node_id === node.id || e.target_node_id === node.id);
+  const nodeAnoms    = anomalies.filter((a) => a.entities.includes(node.id) || a.entities.includes(node.canonical_name));
+  const nodeById     = new Map<string, Node>(allNodes.map((n) => [n.id, n]));
+  const riskPct      = Math.round(node.risk_score * 100);
+  const hi           = node.risk_score > 0.7;
+  const emoji        = NODE_EMOJI[node.node_type] ?? "❓";
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        right: 0,
-        top: 0,
-        bottom: 0,
-        width: 340,
-        backgroundColor: "#111827",
-        borderLeft: "1px solid #374151",
-        zIndex: 1000,
-        display: "flex",
-        flexDirection: "column",
-        boxShadow: "-8px 0 24px rgba(0,0,0,0.5)",
-      }}
-    >
-      {/* Header */}
-      <div
-        style={{
-          padding: "16px 16px 12px",
-          borderBottom: "1px solid #374151",
-          display: "flex",
-          alignItems: "flex-start",
-          justifyContent: "space-between",
-          gap: 12,
-          flexShrink: 0,
-        }}
-      >
-        <div style={{ minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-            <span style={{ fontSize: 22 }}>{emoji}</span>
-            <span
-              style={{
-                fontSize: 12,
-                backgroundColor: "#374151",
-                color: "#9ca3af",
-                padding: "2px 8px",
-                borderRadius: 4,
-              }}
-            >
-              {node.node_type}
-            </span>
+    <div style={{
+      position: "fixed", right: 0, top: 64, bottom: 0,
+      width: "min(420px, 100vw)",
+      backgroundColor: "#0f172a",
+      borderLeft: "1px solid #1e293b",
+      zIndex: 1000,
+      display: "flex", flexDirection: "column",
+      boxShadow: "-12px 0 40px rgba(0,0,0,0.6)",
+      fontFamily: "system-ui, sans-serif",
+    }}>
+
+      {/* ── Header ── */}
+      <div style={{ padding: "14px 16px 10px", borderBottom: "1px solid #1e293b", flexShrink: 0, backgroundColor: hi ? "#1c0a0a" : "#0f172a" }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 22 }}>{emoji}</span>
+              <span style={{ fontSize: 11, backgroundColor: "#1e293b", color: "#94a3b8", padding: "2px 8px", borderRadius: 4 }}>
+                {node.node_type}
+              </span>
+              {hi && <span style={{ fontSize: 10, backgroundColor: "#7f1d1d", color: "#fca5a5", padding: "2px 8px", borderRadius: 4, fontWeight: 700 }}>🚨 ALTO RIESGO</span>}
+            </div>
+            <h2 style={{ fontSize: 15, fontWeight: 800, color: "#f1f5f9", margin: 0, lineHeight: 1.3, wordBreak: "break-word" }}>
+              {node.canonical_name}
+            </h2>
+            <div style={{ fontSize: 10, color: "#64748b", marginTop: 4 }}>
+              Detectado: {new Date(node.created_at).toLocaleDateString("es-CL", { day: "numeric", month: "long", year: "numeric" })}
+              {" · "}Actualizado: {new Date(node.updated_at).toLocaleDateString("es-CL", { day: "numeric", month: "long", year: "numeric" })}
+            </div>
           </div>
-          <h2
-            style={{
-              fontSize: 15,
-              fontWeight: 700,
-              color: "#f9fafb",
-              margin: 0,
-              lineHeight: 1.3,
-              wordBreak: "break-word",
-            }}
-          >
-            {node.canonical_name}
-          </h2>
+          <button onClick={onClose} style={{ background: "#1e293b", border: "none", borderRadius: 6, color: "#94a3b8", cursor: "pointer", fontSize: 18, lineHeight: 1, padding: "6px 10px", flexShrink: 0 }}>×</button>
         </div>
-        <button
-          onClick={onClose}
-          style={{
-            background: "none",
-            border: "1px solid #374151",
-            borderRadius: 6,
-            color: "#9ca3af",
-            cursor: "pointer",
-            fontSize: 18,
-            padding: "2px 8px",
-            flexShrink: 0,
-          }}
-        >
-          ×
-        </button>
       </div>
 
-      {/* Scrollable content */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "12px 16px" }}>
-        {/* Risk score */}
-        <div
-          style={{
-            backgroundColor: isHighRisk ? "#450a0a" : "#1f2937",
-            border: `1px solid ${isHighRisk ? "#7f1d1d" : "#374151"}`,
-            borderRadius: 8,
-            padding: "10px 12px",
-            marginBottom: 12,
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              marginBottom: 6,
-              alignItems: "center",
-            }}
-          >
-            <span style={{ fontSize: 12, color: "#9ca3af" }}>Nivel de Riesgo</span>
-            <span
-              style={{
-                fontSize: 16,
-                fontWeight: 800,
-                color: isHighRisk ? "#f87171" : node.risk_score > 0.4 ? "#fbbf24" : "#4ade80",
-                fontFamily: "monospace",
-              }}
-            >
-              {riskPct}%
-            </span>
+      {/* ── Scrollable content ── */}
+      <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px" }}>
+
+        {/* Risk bar */}
+        <div style={{ backgroundColor: hi ? "#450a0a" : "#1e293b", border: `1px solid ${hi ? "#7f1d1d" : "#334155"}`, borderRadius: 8, padding: "10px 12px", marginBottom: 14 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+            <span style={{ fontSize: 12, color: "#94a3b8" }}>Nivel de Riesgo</span>
+            <span style={{ fontSize: 18, fontWeight: 800, color: hi ? "#f87171" : node.risk_score > 0.4 ? "#fbbf24" : "#4ade80", fontFamily: "monospace" }}>{riskPct}%</span>
           </div>
-          <div
-            style={{
-              height: 8,
-              borderRadius: 4,
-              backgroundColor: "#374151",
-              overflow: "hidden",
-            }}
-          >
-            <div
-              style={{
-                height: "100%",
-                width: `${riskPct}%`,
-                borderRadius: 4,
-                backgroundColor: isHighRisk ? "#dc2626" : node.risk_score > 0.4 ? "#f59e0b" : "#22c55e",
-              }}
-            />
+          <div style={{ height: 10, borderRadius: 5, backgroundColor: "#334155", overflow: "hidden" }}>
+            <div style={{ height: "100%", width: `${riskPct}%`, borderRadius: 5, backgroundColor: hi ? "#dc2626" : node.risk_score > 0.4 ? "#f59e0b" : "#22c55e", transition: "width 0.3s" }} />
+          </div>
+          <div style={{ fontSize: 10, color: "#64748b", marginTop: 6 }}>
+            {hi ? "⚠️ Riesgo alto — múltiples señales de alerta detectadas" : riskPct > 40 ? "Riesgo moderado — bajo monitoreo activo" : "Riesgo bajo — sin alertas graves"}
           </div>
         </div>
 
-        {/* Metadata */}
+        {/* RUT / aliases */}
         {node.rut && (
           <div style={{ marginBottom: 10 }}>
-            <span style={{ fontSize: 11, color: "#6b7280" }}>RUT:</span>
-            <span style={{ fontSize: 11, color: "#d1d5db", marginLeft: 6, fontFamily: "monospace" }}>
-              {node.rut}
-            </span>
+            <span style={{ fontSize: 11, color: "#64748b" }}>RUT: </span>
+            <span style={{ fontSize: 11, color: "#cbd5e1", fontFamily: "monospace", fontWeight: 600 }}>{node.rut}</span>
           </div>
         )}
-
         {node.aliases && node.aliases.length > 0 && (
           <div style={{ marginBottom: 12 }}>
-            <p style={{ fontSize: 11, color: "#6b7280", margin: "0 0 4px" }}>Alias:</p>
+            <p style={{ fontSize: 11, color: "#64748b", margin: "0 0 5px" }}>También conocido como:</p>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-              {node.aliases.slice(0, 6).map((alias, i) => (
-                <span
-                  key={i}
-                  style={{
-                    fontSize: 10,
-                    backgroundColor: "#1f2937",
-                    border: "1px solid #374151",
-                    borderRadius: 4,
-                    padding: "2px 6px",
-                    color: "#9ca3af",
-                  }}
-                >
-                  {alias}
-                </span>
+              {node.aliases.map((alias, i) => (
+                <span key={i} style={{ fontSize: 10, backgroundColor: "#1e293b", border: "1px solid #334155", borderRadius: 4, padding: "2px 7px", color: "#94a3b8" }}>{alias}</span>
               ))}
             </div>
           </div>
         )}
 
-        {/* Metadata extras */}
+        {/* Metadata */}
         {Object.keys(node.metadata).length > 0 && (
-          <div
-            style={{
-              marginBottom: 12,
-              backgroundColor: "#1f2937",
-              borderRadius: 6,
-              padding: "8px 10px",
-              fontSize: 11,
-              color: "#9ca3af",
-              border: "1px solid #374151",
-            }}
-          >
-            {Object.entries(node.metadata)
-              .slice(0, 5)
-              .map(([k, v]) => (
-                <div key={k} style={{ marginBottom: 3 }}>
-                  <span style={{ color: "#6b7280" }}>{k}: </span>
-                  <span style={{ color: "#d1d5db" }}>{String(v).slice(0, 60)}</span>
-                </div>
-              ))}
+          <div style={{ marginBottom: 14, backgroundColor: "#1e293b", borderRadius: 7, padding: "10px 12px", border: "1px solid #334155" }}>
+            <p style={{ fontSize: 11, color: "#64748b", margin: "0 0 6px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>Datos del Estado</p>
+            {Object.entries(node.metadata).map(([k, v]) => (
+              <div key={k} style={{ marginBottom: 4, fontSize: 11 }}>
+                <span style={{ color: "#64748b" }}>{k.replace(/_/g, " ")}: </span>
+                <span style={{ color: "#e2e8f0", fontWeight: 500 }}>{String(v).slice(0, 120)}</span>
+              </div>
+            ))}
           </div>
         )}
 
-        {/* Related edges */}
-        <div style={{ marginBottom: 12 }}>
-          <p
-            style={{
-              fontSize: 12,
-              fontWeight: 600,
-              color: "#e5e7eb",
-              margin: "0 0 8px",
-              borderBottom: "1px solid #374151",
-              paddingBottom: 6,
-            }}
-          >
-            🔗 Relaciones ({relatedEdges.length})
+        {/* Anomalías vinculadas */}
+        {nodeAnoms.length > 0 && (
+          <div style={{ marginBottom: 14 }}>
+            <p style={{ fontSize: 12, fontWeight: 700, color: "#f87171", margin: "0 0 8px", paddingBottom: 6, borderBottom: "1px solid #334155" }}>
+              🚨 Anomalías detectadas ({nodeAnoms.length})
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {nodeAnoms.map((an) => (
+                <div key={an.id} style={{ backgroundColor: "#2d1111", border: "1px solid #7f1d1d", borderRadius: 6, padding: "8px 10px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                    <span style={{ fontSize: 10, backgroundColor: "#7f1d1d", color: "#fca5a5", padding: "1px 6px", borderRadius: 3, fontWeight: 700 }}>{an.anomaly_type.replace(/_/g, " ")}</span>
+                    <span style={{ fontSize: 10, color: "#f87171", fontFamily: "monospace" }}>{Math.round(an.confidence * 100)}%</span>
+                  </div>
+                  <p style={{ fontSize: 11, color: "#fca5a5", margin: 0, lineHeight: 1.4 }}>{an.description}</p>
+                  <div style={{ fontSize: 9, color: "#64748b", marginTop: 4 }}>
+                    {new Date(an.created_at).toLocaleDateString("es-CL", { day: "numeric", month: "long", year: "numeric" })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Relaciones */}
+        <div style={{ marginBottom: 14 }}>
+          <p style={{ fontSize: 12, fontWeight: 700, color: "#e2e8f0", margin: "0 0 8px", paddingBottom: 6, borderBottom: "1px solid #334155" }}>
+            🔗 Relaciones documentadas ({relatedEdges.length})
           </p>
           {relatedEdges.length === 0 ? (
-            <p style={{ fontSize: 11, color: "#6b7280", fontStyle: "italic" }}>
-              Sin relaciones documentadas
-            </p>
+            <p style={{ fontSize: 11, color: "#475569", fontStyle: "italic" }}>Sin relaciones documentadas</p>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {relatedEdges.slice(0, 10).map((edge) => {
-                const related = getRelatedNode(edge);
+              {relatedEdges.map((edge) => {
                 const isSource = edge.source_node_id === node.id;
+                const otherId  = isSource ? edge.target_node_id : edge.source_node_id;
+                const other    = nodeById.get(otherId);
+                const color    = getEdgeColor(edge.relation_type);
+                const detectedAt = edge.detected_at
+                  ? new Date(edge.detected_at).toLocaleDateString("es-CL", { day: "numeric", month: "short", year: "numeric" })
+                  : null;
                 return (
-                  <div
-                    key={edge.id}
-                    style={{
-                      backgroundColor: "#1f2937",
-                      borderRadius: 6,
-                      padding: "6px 8px",
-                      border: "1px solid #374151",
-                      fontSize: 11,
-                    }}
-                  >
-                    <div style={{ color: "#9ca3af", marginBottom: 2 }}>
-                      {isSource ? "→" : "←"}{" "}
-                      <span
-                        style={{
-                          color: getEdgeColor(edge.relation_type),
-                          fontWeight: 600,
-                        }}
-                      >
-                        {edge.relation_type}
+                  <div key={edge.id} style={{ backgroundColor: "#1e293b", borderRadius: 7, padding: "8px 10px", border: "1px solid #334155" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4, flexWrap: "wrap" }}>
+                      <span style={{ fontSize: 10, color: "#64748b" }}>{isSource ? "→" : "←"}</span>
+                      <span style={{ fontSize: 10, color, fontWeight: 700, backgroundColor: `${color.replace("0.8", "0.1")}`, padding: "1px 6px", borderRadius: 3 }}>
+                        {edge.relation_type.replace(/_/g, " ")}
                       </span>
+                      {edge.weight > 1 && <span style={{ fontSize: 9, color: "#64748b" }}>peso: {edge.weight}</span>}
                     </div>
-                    {related && (
-                      <div style={{ color: "#d1d5db", fontWeight: 500 }}>
-                        {truncateName(related.canonical_name, 32)}
+                    {other && (
+                      <div style={{ fontSize: 12, color: "#cbd5e1", fontWeight: 600, marginBottom: 3 }}>
+                        {NODE_EMOJI[other.node_type] ?? "❓"} {other.canonical_name}
                       </div>
                     )}
                     {edge.evidence_text && (
-                      <div
-                        style={{
-                          color: "#6b7280",
-                          fontSize: 10,
-                          marginTop: 2,
-                          fontStyle: "italic",
-                        }}
-                      >
-                        {edge.evidence_text.slice(0, 80)}
+                      <div style={{ fontSize: 10, color: "#94a3b8", fontStyle: "italic", lineHeight: 1.4, marginBottom: 3 }}>
+                        "{edge.evidence_text.slice(0, 140)}"
                       </div>
                     )}
+                    {detectedAt && (
+                      <div style={{ fontSize: 9, color: "#475569" }}>Detectado: {detectedAt}</div>
+                    )}
                     {edge.evidence_url && (
-                      <a
-                        href={edge.evidence_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{
-                          fontSize: 10,
-                          color: "#60a5fa",
-                          textDecoration: "none",
-                          display: "block",
-                          marginTop: 2,
-                        }}
-                      >
-                        Ver evidencia →
+                      <a href={edge.evidence_url} target="_blank" rel="noopener noreferrer"
+                        style={{ fontSize: 10, color: "#60a5fa", textDecoration: "none", display: "block", marginTop: 3 }}>
+                        📎 Ver evidencia →
                       </a>
                     )}
                   </div>
@@ -557,110 +410,77 @@ function SidePanel({ node, edges, allNodes, onClose }: SidePanelProps) {
             </div>
           )}
         </div>
-
-        {/* Timestamps */}
-        <div style={{ fontSize: 10, color: "#4b5563", borderTop: "1px solid #374151", paddingTop: 8 }}>
-          <div>Creado: {new Date(node.created_at).toLocaleDateString("es-CL")}</div>
-          <div>Actualizado: {new Date(node.updated_at).toLocaleDateString("es-CL")}</div>
-        </div>
       </div>
 
-      {/* Footer: link to entity page */}
-      <div
-        style={{
-          padding: "12px 16px",
-          borderTop: "1px solid #374151",
-          flexShrink: 0,
-        }}
-      >
-        <Link
-          href={`/entidad/${node.id}`}
-          style={{
-            display: "block",
-            textAlign: "center",
-            backgroundColor: "#1d4ed8",
-            color: "#fff",
-            borderRadius: 8,
-            padding: "10px",
-            fontSize: 13,
-            fontWeight: 600,
-            textDecoration: "none",
-          }}
-        >
+      {/* Footer */}
+      <div style={{ padding: "12px 16px", borderTop: "1px solid #1e293b", flexShrink: 0, backgroundColor: "#0f172a", display: "flex", gap: 8 }}>
+        <Link href={`/entidad/${node.id}`} style={{ flex: 1, display: "block", textAlign: "center", backgroundColor: "#1d4ed8", color: "#fff", borderRadius: 8, padding: "10px", fontSize: 13, fontWeight: 700, textDecoration: "none" }}>
           Ver perfil completo →
         </Link>
+        <a href={`https://www.google.com/search?q=${encodeURIComponent(node.canonical_name + " Chile corrupción")}`}
+          target="_blank" rel="noopener noreferrer"
+          style={{ display: "block", textAlign: "center", backgroundColor: "#1e293b", color: "#94a3b8", border: "1px solid #334155", borderRadius: 8, padding: "10px 12px", fontSize: 13, textDecoration: "none", flexShrink: 0 }}
+          title="Buscar en Google">
+          🔍
+        </a>
       </div>
     </div>
   );
 }
 
-// ── Edge SVG layer ────────────────────────────────────────────────────────────
+// ── Edge SVG layer ─────────────────────────────────────────────────────────────
 
-interface EdgeLayerProps {
-  edges: Edge[];
-  positions: Map<string, NodePosition>;
-  visibleNodeIds: Set<string>;
-}
+function EdgeLayer({ edges, positions, visibleNodeIds, selectedNodeId }: {
+  edges: Edge[]; positions: Map<string, NodePosition>; visibleNodeIds: Set<string>; selectedNodeId?: string;
+}) {
+  const vis = edges.filter((e) => visibleNodeIds.has(e.source_node_id) && visibleNodeIds.has(e.target_node_id));
+  if (vis.length === 0) return null;
 
-function EdgeLayer({ edges, positions, visibleNodeIds }: EdgeLayerProps) {
-  const visibleEdges = edges.filter(
-    (e) => visibleNodeIds.has(e.source_node_id) && visibleNodeIds.has(e.target_node_id)
-  );
-
-  if (visibleEdges.length === 0) return null;
-
-  // Compute bounding box
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-  for (const [, pos] of positions) {
-    if (pos.x < minX) minX = pos.x;
-    if (pos.y < minY) minY = pos.y;
-    if (pos.x > maxX) maxX = pos.x;
-    if (pos.y > maxY) maxY = pos.y;
+  for (const [, p] of positions) {
+    if (p.x < minX) minX = p.x; if (p.y < minY) minY = p.y;
+    if (p.x > maxX) maxX = p.x; if (p.y > maxY) maxY = p.y;
   }
+  const pad = 500;
+  const L = minX - pad, T = minY - pad, W = maxX - minX + pad * 2, H = maxY - minY + pad * 2;
 
-  const padding = 400;
-  const svgLeft = minX - padding;
-  const svgTop = minY - padding;
-  const svgWidth = maxX - minX + padding * 2;
-  const svgHeight = maxY - minY + padding * 2;
+  const relatedToSelected = selectedNodeId
+    ? new Set(edges.filter((e) => e.source_node_id === selectedNodeId || e.target_node_id === selectedNodeId).map((e) => e.id))
+    : null;
 
   return (
-    <svg
-      style={{
-        position: "absolute",
-        left: svgLeft,
-        top: svgTop,
-        width: svgWidth,
-        height: svgHeight,
-        pointerEvents: "none",
-        overflow: "visible",
-      }}
-      viewBox={`0 0 ${svgWidth} ${svgHeight}`}
-    >
-      {visibleEdges.map((edge) => {
+    <svg style={{ position: "absolute", left: L, top: T, width: W, height: H, pointerEvents: "none", overflow: "visible" }} viewBox={`0 0 ${W} ${H}`}>
+      <defs>
+        {Object.entries(RELATION_COLORS).filter(([k]) => k !== "default").map(([k, c]) => (
+          <marker key={k} id={`arrow-${k.replace(/[^a-z0-9]/g, "")}`} markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L6,3 z" fill={c} />
+          </marker>
+        ))}
+        <marker id="arrow-default" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L6,3 z" fill={RELATION_COLORS.default} />
+        </marker>
+      </defs>
+      {vis.map((edge) => {
         const src = positions.get(edge.source_node_id);
         const tgt = positions.get(edge.target_node_id);
         if (!src || !tgt) return null;
-
-        const x1 = src.x - svgLeft;
-        const y1 = src.y - svgTop;
-        const x2 = tgt.x - svgLeft;
-        const y2 = tgt.y - svgTop;
-
-        // Quadratic bezier control point — slight curve for realism
-        const cx = (x1 + x2) / 2 + (y2 - y1) * 0.12;
-        const cy = (y1 + y2) / 2 - (x2 - x1) * 0.12;
-
+        const x1 = src.x - L, y1 = src.y - T, x2 = tgt.x - L, y2 = tgt.y - T;
+        const cx = (x1 + x2) / 2 + (y2 - y1) * 0.13;
+        const cy = (y1 + y2) / 2 - (x2 - x1) * 0.13;
         const color = getEdgeColor(edge.relation_type);
-
+        const isActive = relatedToSelected ? relatedToSelected.has(edge.id) : true;
+        const normKey = edge.relation_type.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9]/g, "");
+        const markerId = `arrow-${normKey}`;
         return (
           <path
             key={edge.id}
             d={`M ${x1} ${y1} Q ${cx} ${cy} ${x2} ${y2}`}
             fill="none"
             stroke={color}
-            strokeWidth={1.5}
+            strokeWidth={isActive ? 2 : 0.8}
+            strokeOpacity={isActive ? 1 : 0.3}
             strokeLinecap="round"
+            markerEnd={isActive ? `url(#${markerId})` : undefined}
           />
         );
       })}
@@ -668,129 +488,134 @@ function EdgeLayer({ edges, positions, visibleNodeIds }: EdgeLayerProps) {
   );
 }
 
-// ── Main Page ─────────────────────────────────────────────────────────────────
+// ── Legend ─────────────────────────────────────────────────────────────────────
+
+function Legend() {
+  return (
+    <div style={{ position: "absolute", bottom: 16, left: 16, backgroundColor: "rgba(15,23,42,0.9)", border: "1px solid #334155", borderRadius: 8, padding: "10px 14px", zIndex: 50, backdropFilter: "blur(8px)" }}>
+      <p style={{ fontSize: 10, color: "#64748b", margin: "0 0 6px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>Leyenda</p>
+      {[
+        { color: "#3b82f6", label: "Persona" },
+        { color: "#f59e0b", label: "Empresa" },
+        { color: "#8b5cf6", label: "Institución" },
+        { color: "#10b981", label: "Contrato" },
+        { color: "#06b6d4", label: "Cuenta Social" },
+      ].map(({ color, label }) => (
+        <div key={label} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+          <span style={{ width: 10, height: 10, borderRadius: "50%", backgroundColor: color, flexShrink: 0 }} />
+          <span style={{ fontSize: 10, color: "#94a3b8" }}>{label}</span>
+        </div>
+      ))}
+      <div style={{ marginTop: 6, borderTop: "1px solid #334155", paddingTop: 6 }}>
+        {[
+          { color: "rgba(220,38,38,0.8)", label: "Conflicto interés" },
+          { color: "rgba(234,88,12,0.8)", label: "Contratos" },
+          { color: "rgba(202,138,4,0.8)", label: "Financió a" },
+          { color: "rgba(147,51,234,0.8)", label: "Lobby" },
+        ].map(({ color, label }) => (
+          <div key={label} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+            <div style={{ width: 18, height: 2, backgroundColor: color, flexShrink: 0 }} />
+            <span style={{ fontSize: 10, color: "#94a3b8" }}>{label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Main Page ──────────────────────────────────────────────────────────────────
 
 export default function ParedPage() {
-  const [nodes, setNodes] = useState<Node[]>([]);
-  const [edges, setEdges] = useState<Edge[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedNode, setSelectedNode] = useState<Node | null>(null);
-  const [typeFilter, setTypeFilter] = useState<string>("all");
-  const [search, setSearch] = useState("");
-  const [isMobile, setIsMobile] = useState(false);
+  const [allNodes, setAllNodes]   = useState<Node[]>([]);
+  const [allEdges, setAllEdges]   = useState<Edge[]>([]);
+  const [anomalies, setAnomalies] = useState<Anomaly[]>([]);
+  const [loading, setLoading]     = useState(true);
 
-  // Canvas state
+  const [reds, setReds]         = useState<RedCorrupcion[]>([]);
+  const [currentRedIdx, setCurrentRedIdx] = useState(0);
+  const [showNetSelector, setShowNetSelector] = useState(false);
+
+  const [selectedNode, setSelectedNode] = useState<Node | null>(null);
+  const [search, setSearch]             = useState("");
+
   const [transform, setTransform] = useState<CanvasTransform>({ x: 0, y: 0, scale: INITIAL_SCALE });
   const [positions, setPositions] = useState<Map<string, NodePosition>>(new Map());
 
-  // Drag state (canvas pan)
-  const isPanningRef = useRef(false);
-  const panStartRef = useRef({ mouseX: 0, mouseY: 0, tx: 0, ty: 0 });
+  const containerRef     = useRef<HTMLDivElement>(null);
+  const isPanningRef     = useRef(false);
+  const panStartRef      = useRef({ mouseX: 0, mouseY: 0, tx: 0, ty: 0 });
+  const isDraggingRef    = useRef(false);
+  const nodeDragRef      = useRef<DragState>({ nodeId: null, startMouseX: 0, startMouseY: 0, startNodeX: 0, startNodeY: 0 });
 
-  // Node drag state
-  const nodeDragRef = useRef<DragState>({
-    nodeId: null,
-    startMouseX: 0,
-    startMouseY: 0,
-    startNodeX: 0,
-    startNodeY: 0,
-  });
-  const isDraggingNodeRef = useRef(false);
-
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  // ── Load data ──────────────────────────────────────────────────────────────
+  // ── Load ────────────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    Promise.all([getNodes(MAX_NODES), getEdges(500)])
-      .then(([n, e]) => {
-        setNodes(n);
-        setEdges(e);
-      })
-      .catch((err: unknown) => {
-        const msg = err instanceof Error ? err.message : "Error desconocido";
-        setError(msg);
+    Promise.all([getNodes(200), getEdges(500), getAnomalies(0.5)])
+      .then(([n, e, a]) => {
+        setAllNodes(n);
+        setAllEdges(e);
+        setAnomalies(a);
       })
       .finally(() => setLoading(false));
   }, []);
 
-  // ── Compute radial layout once nodes loaded ────────────────────────────────
+  // ── Build networks ──────────────────────────────────────────────────────────
 
   useEffect(() => {
-    if (nodes.length === 0) return;
-    const layout = computeRadialLayout(nodes);
-    const map = new Map<string, NodePosition>();
-    for (const pos of layout) map.set(pos.id, pos);
+    if (allNodes.length === 0) return;
+    const r = findConnectedComponents(allNodes, allEdges);
+    setReds(r);
+    setCurrentRedIdx(0);
+  }, [allNodes, allEdges]);
+
+  // ── Layout current network ──────────────────────────────────────────────────
+
+  const currentRed = reds[currentRedIdx] ?? null;
+  const networkNodes = currentRed
+    ? allNodes.filter((n) => currentRed.nodeIds.has(n.id))
+    : [];
+
+  useEffect(() => {
+    if (networkNodes.length === 0) return;
+    const map = layoutNetwork(networkNodes);
     setPositions(map);
-  }, [nodes]);
+    setSelectedNode(null);
+    // Center view
+    if (containerRef.current) {
+      const { width, height } = containerRef.current.getBoundingClientRect();
+      setTransform({ x: width / 2, y: height / 2, scale: INITIAL_SCALE });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentRedIdx, reds]);
 
-  // ── Center canvas on mount / resize ───────────────────────────────────────
-
+  // Center on load
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (!containerRef.current || networkNodes.length === 0) return;
     const { width, height } = containerRef.current.getBoundingClientRect();
     setTransform({ x: width / 2, y: height / 2, scale: INITIAL_SCALE });
-  }, [nodes]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [positions]);
 
-  // ── Mobile detection ───────────────────────────────────────────────────────
+  // ── Filtered node IDs for current network (+ search) ────────────────────────
 
-  useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 768);
-    check();
-    window.addEventListener("resize", check);
-    return () => window.removeEventListener("resize", check);
-  }, []);
+  const filteredNodes = networkNodes.filter((n) =>
+    !search || n.canonical_name.toLowerCase().includes(search.toLowerCase()) || (n.rut && n.rut.includes(search))
+  );
+  const visibleIds = new Set(filteredNodes.map((n) => n.id));
 
-  // ── Filtered node list ─────────────────────────────────────────────────────
-
-  const filteredNodes = nodes
-    .filter((n) => {
-      const matchType = typeFilter === "all" || n.node_type === typeFilter;
-      const matchSearch =
-        !search ||
-        n.canonical_name.toLowerCase().includes(search.toLowerCase()) ||
-        (n.rut && n.rut.includes(search));
-      return matchType && matchSearch;
-    })
-    .slice(0, MAX_NODES);
-
-  const visibleNodeIds = new Set(filteredNodes.map((n) => n.id));
-
-  // ── Zoom helpers ───────────────────────────────────────────────────────────
-
-  const zoomIn = useCallback(() => {
-    setTransform((t) => ({ ...t, scale: Math.min(t.scale * 1.25, 4) }));
-  }, []);
-
-  const zoomOut = useCallback(() => {
-    setTransform((t) => ({ ...t, scale: Math.max(t.scale / 1.25, 0.15) }));
-  }, []);
-
-  const resetView = useCallback(() => {
-    if (!containerRef.current) return;
-    const { width, height } = containerRef.current.getBoundingClientRect();
-    setTransform({ x: width / 2, y: height / 2, scale: INITIAL_SCALE });
-  }, []);
-
-  // ── Wheel zoom ─────────────────────────────────────────────────────────────
+  // ── Wheel zoom ──────────────────────────────────────────────────────────────
 
   const handleWheel = useCallback((e: WheelEvent) => {
     e.preventDefault();
-    const factor = e.deltaY < 0 ? 1.1 : 0.9;
+    const factor = e.deltaY < 0 ? 1.12 : 0.9;
     setTransform((t) => {
-      const newScale = Math.min(Math.max(t.scale * factor, 0.15), 4);
-      // Zoom toward cursor
+      const newScale = Math.min(Math.max(t.scale * factor, 0.1), 5);
       const rect = containerRef.current?.getBoundingClientRect();
       if (!rect) return { ...t, scale: newScale };
-      const mouseX = e.clientX - rect.left;
-      const mouseY = e.clientY - rect.top;
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
       const ratio = newScale / t.scale;
-      return {
-        x: mouseX - ratio * (mouseX - t.x),
-        y: mouseY - ratio * (mouseY - t.y),
-        scale: newScale,
-      };
+      return { x: mx - ratio * (mx - t.x), y: my - ratio * (my - t.y), scale: newScale };
     });
   }, []);
 
@@ -801,505 +626,257 @@ export default function ParedPage() {
     return () => el.removeEventListener("wheel", handleWheel);
   }, [handleWheel]);
 
-  // ── Canvas pan ─────────────────────────────────────────────────────────────
+  // ── Pan / Drag ──────────────────────────────────────────────────────────────
 
   const handleCanvasMouseDown = useCallback((e: React.MouseEvent) => {
-    // Only pan if not clicking a node
     if ((e.target as HTMLElement).closest("[data-node-card]")) return;
     isPanningRef.current = true;
-    panStartRef.current = {
-      mouseX: e.clientX,
-      mouseY: e.clientY,
-      tx: transform.x,
-      ty: transform.y,
-    };
+    panStartRef.current = { mouseX: e.clientX, mouseY: e.clientY, tx: transform.x, ty: transform.y };
   }, [transform]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (isDraggingNodeRef.current && nodeDragRef.current.nodeId) {
-      const drag = nodeDragRef.current;
-      const dx = (e.clientX - drag.startMouseX) / transform.scale;
-      const dy = (e.clientY - drag.startMouseY) / transform.scale;
+    if (isDraggingRef.current && nodeDragRef.current.nodeId) {
+      const d = nodeDragRef.current;
+      const dx = (e.clientX - d.startMouseX) / transform.scale;
+      const dy = (e.clientY - d.startMouseY) / transform.scale;
       setPositions((prev) => {
         const next = new Map(prev);
-        next.set(drag.nodeId!, {
-          id: drag.nodeId!,
-          x: drag.startNodeX + dx,
-          y: drag.startNodeY + dy,
-        });
+        next.set(d.nodeId!, { id: d.nodeId!, x: d.startNodeX + dx, y: d.startNodeY + dy });
         return next;
       });
       return;
     }
-
     if (isPanningRef.current) {
       const dx = e.clientX - panStartRef.current.mouseX;
       const dy = e.clientY - panStartRef.current.mouseY;
-      setTransform((t) => ({
-        ...t,
-        x: panStartRef.current.tx + dx,
-        y: panStartRef.current.ty + dy,
-      }));
+      setTransform((t) => ({ ...t, x: panStartRef.current.tx + dx, y: panStartRef.current.ty + dy }));
     }
   }, [transform.scale]);
 
   const handleMouseUp = useCallback(() => {
-    isPanningRef.current = false;
-    isDraggingNodeRef.current = false;
+    isPanningRef.current  = false;
+    isDraggingRef.current = false;
     nodeDragRef.current.nodeId = null;
   }, []);
 
-  // ── Node drag start ────────────────────────────────────────────────────────
-
-  const handleNodeMouseDown = useCallback(
-    (e: React.MouseEvent, nodeId: string) => {
-      e.stopPropagation();
-      const pos = positions.get(nodeId);
-      if (!pos) return;
-      isDraggingNodeRef.current = true;
-      nodeDragRef.current = {
-        nodeId,
-        startMouseX: e.clientX,
-        startMouseY: e.clientY,
-        startNodeX: pos.x,
-        startNodeY: pos.y,
-      };
-    },
-    [positions]
-  );
-
-  // ── Node click ─────────────────────────────────────────────────────────────
+  const handleNodeMouseDown = useCallback((e: React.MouseEvent, nodeId: string) => {
+    e.stopPropagation();
+    const pos = positions.get(nodeId);
+    if (!pos) return;
+    isDraggingRef.current = true;
+    nodeDragRef.current = { nodeId, startMouseX: e.clientX, startMouseY: e.clientY, startNodeX: pos.x, startNodeY: pos.y };
+  }, [positions]);
 
   const handleNodeClick = useCallback((node: Node) => {
     setSelectedNode((prev) => (prev?.id === node.id ? null : node));
   }, []);
 
-  // ── Mobile list view ───────────────────────────────────────────────────────
+  // ── Zoom controls ──────────────────────────────────────────────────────────
 
-  if (isMobile) {
+  const zoomIn    = () => setTransform((t) => ({ ...t, scale: Math.min(t.scale * 1.25, 5) }));
+  const zoomOut   = () => setTransform((t) => ({ ...t, scale: Math.max(t.scale / 1.25, 0.1) }));
+  const resetView = () => {
+    if (!containerRef.current) return;
+    const { width, height } = containerRef.current.getBoundingClientRect();
+    setTransform({ x: width / 2, y: height / 2, scale: INITIAL_SCALE });
+  };
+
+  // ── Loading state ──────────────────────────────────────────────────────────
+
+  if (loading) {
     return (
-      <div style={{ padding: 16, fontFamily: "system-ui, sans-serif" }}>
-        <h1 style={{ fontSize: 20, fontWeight: 800, color: "#f9fafb", marginBottom: 4 }}>
-          🧵 La Pared de la Corrupción
-        </h1>
-        <p style={{ fontSize: 13, color: "#9ca3af", marginBottom: 16 }}>
-          Vista simplificada para móvil — usa escritorio para el tablero interactivo
-        </p>
-
-        {loading && <p style={{ color: "#6b7280", textAlign: "center", padding: 32 }}>Cargando...</p>}
-        {error && (
-          <p style={{ color: "#f87171", textAlign: "center", padding: 16 }}>Error: {error}</p>
-        )}
-
-        {!loading && nodes.length === 0 && (
-          <div style={{ textAlign: "center", color: "#6b7280", padding: 32 }}>
-            <div style={{ fontSize: 40, marginBottom: 8 }}>🕵️</div>
-            <p>La pared está vacía — el sistema aún está recopilando datos</p>
-          </div>
-        )}
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {nodes.slice(0, 50).map((node) => {
-            const emoji = NODE_EMOJI[node.node_type] ?? "❓";
-            const riskPct = Math.round(node.risk_score * 100);
-            const isHighRisk = node.risk_score > 0.7;
-            return (
-              <Link
-                key={node.id}
-                href={`/entidad/${node.id}`}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                  backgroundColor: "#1f2937",
-                  borderRadius: 8,
-                  padding: "10px 12px",
-                  border: "1px solid #374151",
-                  textDecoration: "none",
-                }}
-              >
-                <span style={{ fontSize: 20 }}>{emoji}</span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p
-                    style={{
-                      fontSize: 13,
-                      fontWeight: 600,
-                      color: "#f9fafb",
-                      margin: 0,
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    {node.canonical_name}
-                  </p>
-                  <p style={{ fontSize: 11, color: "#6b7280", margin: 0 }}>{node.node_type}</p>
-                </div>
-                <span
-                  style={{
-                    fontSize: 12,
-                    fontWeight: 700,
-                    color: isHighRisk ? "#f87171" : "#fbbf24",
-                    fontFamily: "monospace",
-                    flexShrink: 0,
-                  }}
-                >
-                  {riskPct}%
-                </span>
-              </Link>
-            );
-          })}
-        </div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "70vh", flexDirection: "column", gap: 12 }}>
+        <div style={{ fontSize: 40, animation: "spin 2s linear infinite" }}>🕵️</div>
+        <div style={{ color: "#94a3b8" }}>Cargando mapa de corrupción…</div>
       </div>
     );
   }
 
-  // ── Desktop canvas view ────────────────────────────────────────────────────
+  if (allNodes.length === 0) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60vh", flexDirection: "column", gap: 16, textAlign: "center" }}>
+        <div style={{ fontSize: 48 }}>🕵️</div>
+        <h2 style={{ color: "#f1f5f9", margin: 0 }}>El detective aún no ha mapeado entidades</h2>
+        <p style={{ color: "#64748b", maxWidth: 400 }}>El sistema está procesando fuentes. Vuelve en unos minutos — el mapa se construirá automáticamente.</p>
+      </div>
+    );
+  }
+
+  const hasSidePanel = Boolean(selectedNode);
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        top: 64, // nav height
-        display: "flex",
-        flexDirection: "column",
-        fontFamily: "system-ui, sans-serif",
-        backgroundColor: "#1a1a1a",
-      }}
-    >
-      {/* Toolbar */}
-      <div
-        style={{
-          height: 52,
-          backgroundColor: "rgba(17,24,39,0.95)",
-          borderBottom: "1px solid #374151",
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          padding: "0 16px",
-          flexShrink: 0,
-          zIndex: 200,
-          backdropFilter: "blur(8px)",
-        }}
-      >
-        <span style={{ fontSize: 16, fontWeight: 800, color: "#f9fafb", marginRight: 4 }}>
-          🧵 Pared
-        </span>
+    <div style={{ position: "fixed", inset: "64px 0 0 0", display: "flex", flexDirection: "column", overflow: "hidden", backgroundColor: "#0f172a" }}>
 
-        {/* Zoom controls */}
-        <button
-          onClick={zoomOut}
-          title="Alejar"
-          style={toolbarBtnStyle}
-        >
-          −
-        </button>
-        <span
-          style={{
-            fontSize: 12,
-            color: "#9ca3af",
-            fontFamily: "monospace",
-            minWidth: 44,
-            textAlign: "center",
-          }}
-        >
-          {Math.round(transform.scale * 100)}%
-        </span>
-        <button onClick={zoomIn} title="Acercar" style={toolbarBtnStyle}>
-          +
-        </button>
-        <button
-          onClick={resetView}
-          style={{ ...toolbarBtnStyle, fontSize: 11, padding: "4px 10px" }}
-        >
-          Reset
-        </button>
+      {/* ── Toolbar ── */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", backgroundColor: "rgba(15,23,42,0.95)", borderBottom: "1px solid #1e293b", flexShrink: 0, flexWrap: "wrap", zIndex: 100, backdropFilter: "blur(8px)" }}>
 
-        <div style={{ width: 1, height: 28, backgroundColor: "#374151", margin: "0 4px" }} />
+        {/* Network selector */}
+        <div style={{ position: "relative" }}>
+          <button
+            onClick={() => setShowNetSelector((s) => !s)}
+            style={{
+              backgroundColor: "#1e293b", border: "1px solid #334155", borderRadius: 8, color: "#f1f5f9",
+              cursor: "pointer", fontSize: 12, padding: "7px 12px", display: "flex", alignItems: "center", gap: 6, fontWeight: 600, maxWidth: 280, overflow: "hidden",
+            }}
+          >
+            <span>🕸️</span>
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {currentRed ? currentRed.name : "Sin redes"}
+            </span>
+            <span style={{ color: "#64748b", flexShrink: 0 }}>▾</span>
+          </button>
 
-        {/* Type filter chips */}
+          {showNetSelector && (
+            <div style={{
+              position: "absolute", top: "100%", left: 0, marginTop: 4, minWidth: 320, maxWidth: 380,
+              backgroundColor: "#1e293b", border: "1px solid #334155", borderRadius: 8, boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+              zIndex: 999, maxHeight: 400, overflowY: "auto",
+            }}>
+              <div style={{ padding: "8px 12px", borderBottom: "1px solid #334155", fontSize: 11, color: "#64748b", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                {reds.length} redes de corrupción detectadas
+              </div>
+              {reds.map((red, i) => (
+                <button
+                  key={red.id}
+                  onClick={() => { setCurrentRedIdx(i); setShowNetSelector(false); }}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "10px 12px",
+                    backgroundColor: i === currentRedIdx ? "#0f172a" : "transparent",
+                    border: "none", borderBottom: "1px solid #0f172a", cursor: "pointer", textAlign: "left",
+                  }}
+                >
+                  <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: red.maxRisk > 0.7 ? "#ef4444" : red.maxRisk > 0.4 ? "#f59e0b" : "#64748b", flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, color: "#f1f5f9", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{red.name}</div>
+                    <div style={{ fontSize: 10, color: "#64748b", marginTop: 1 }}>Riesgo máx: {Math.round(red.maxRisk * 100)}%</div>
+                  </div>
+                  {i === currentRedIdx && <span style={{ color: "#3b82f6", fontSize: 14, flexShrink: 0 }}>✓</span>}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Prev / Next */}
         <div style={{ display: "flex", gap: 4 }}>
-          {NODE_TYPE_FILTERS.map((f) => (
-            <button
-              key={f.value}
-              onClick={() => setTypeFilter(f.value)}
-              style={{
-                fontSize: 11,
-                padding: "3px 9px",
-                borderRadius: 12,
-                border: "1px solid",
-                cursor: "pointer",
-                fontWeight: typeFilter === f.value ? 700 : 400,
-                backgroundColor: typeFilter === f.value ? "#1d4ed8" : "transparent",
-                borderColor: typeFilter === f.value ? "#3b82f6" : "#4b5563",
-                color: typeFilter === f.value ? "#fff" : "#9ca3af",
-                transition: "all 0.15s",
-              }}
-            >
-              {f.label}
+          <button onClick={() => setCurrentRedIdx((i) => Math.max(0, i - 1))} disabled={currentRedIdx === 0}
+            style={{ backgroundColor: "#1e293b", border: "1px solid #334155", borderRadius: 6, color: currentRedIdx === 0 ? "#475569" : "#f1f5f9", cursor: currentRedIdx === 0 ? "not-allowed" : "pointer", padding: "6px 10px", fontSize: 14 }}>
+            ‹
+          </button>
+          <span style={{ fontSize: 11, color: "#64748b", alignSelf: "center", padding: "0 4px" }}>{currentRedIdx + 1}/{reds.length}</span>
+          <button onClick={() => setCurrentRedIdx((i) => Math.min(reds.length - 1, i + 1))} disabled={currentRedIdx >= reds.length - 1}
+            style={{ backgroundColor: "#1e293b", border: "1px solid #334155", borderRadius: 6, color: currentRedIdx >= reds.length - 1 ? "#475569" : "#f1f5f9", cursor: currentRedIdx >= reds.length - 1 ? "not-allowed" : "pointer", padding: "6px 10px", fontSize: 14 }}>
+            ›
+          </button>
+        </div>
+
+        {/* Search */}
+        <input
+          type="text" placeholder="Buscar en esta red…" value={search} onChange={(e) => setSearch(e.target.value)}
+          style={{ backgroundColor: "#1e293b", border: "1px solid #334155", borderRadius: 6, color: "#f1f5f9", fontSize: 12, padding: "6px 10px", outline: "none", minWidth: 160, flex: 1, maxWidth: 240 }}
+        />
+
+        {/* Zoom */}
+        <div style={{ display: "flex", gap: 4, marginLeft: "auto" }}>
+          {[
+            { label: "−", action: zoomOut },
+            { label: "⌂", action: resetView },
+            { label: "+", action: zoomIn },
+          ].map(({ label, action }) => (
+            <button key={label} onClick={action}
+              style={{ backgroundColor: "#1e293b", border: "1px solid #334155", borderRadius: 6, color: "#f1f5f9", cursor: "pointer", padding: "6px 10px", fontSize: 13, fontWeight: 700 }}>
+              {label}
             </button>
           ))}
         </div>
 
-        <div style={{ width: 1, height: 28, backgroundColor: "#374151", margin: "0 4px" }} />
-
-        {/* Search */}
-        <input
-          type="text"
-          placeholder="Buscar entidad..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={{
-            backgroundColor: "#1f2937",
-            border: "1px solid #374151",
-            borderRadius: 6,
-            padding: "4px 10px",
-            fontSize: 12,
-            color: "#f9fafb",
-            outline: "none",
-            width: 180,
-          }}
-        />
-
-        {/* Node count */}
-        <span style={{ fontSize: 11, color: "#6b7280", marginLeft: 4 }}>
-          {filteredNodes.length} nodos · {edges.length} relaciones
-        </span>
-
-        {nodes.length >= MAX_NODES && (
-          <span
-            style={{
-              fontSize: 11,
-              color: "#fbbf24",
-              backgroundColor: "#451a03",
-              border: "1px solid #92400e",
-              borderRadius: 4,
-              padding: "2px 8px",
-            }}
-          >
-            ⚠ Máx {MAX_NODES} nodos
+        {/* Stats badge */}
+        <div style={{ fontSize: 10, color: "#64748b", flexShrink: 0, display: "flex", gap: 8 }}>
+          <span style={{ backgroundColor: "#1e293b", border: "1px solid #334155", borderRadius: 4, padding: "3px 7px" }}>
+            {filteredNodes.length} nodos
           </span>
-        )}
+          <span style={{ backgroundColor: "#1e293b", border: "1px solid #334155", borderRadius: 4, padding: "3px 7px" }}>
+            {allEdges.filter((e) => visibleIds.has(e.source_node_id) && visibleIds.has(e.target_node_id)).length} vínculos
+          </span>
+        </div>
       </div>
 
-      {/* Canvas area */}
+      {/* ── Canvas area ── */}
       <div
         ref={containerRef}
         onMouseDown={handleCanvasMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
+        onClick={() => setShowNetSelector(false)}
         style={{
-          flex: 1,
-          overflow: "hidden",
-          cursor: isPanningRef.current ? "grabbing" : "grab",
-          position: "relative",
-          // Cork background
-          backgroundColor: "#c8a87a",
-          backgroundImage:
-            "repeating-linear-gradient(45deg, rgba(0,0,0,0.03) 0px, rgba(0,0,0,0.03) 1px, transparent 0, transparent 50%)",
-          backgroundSize: "8px 8px",
+          flex: 1, overflow: "hidden", position: "relative", cursor: "crosshair",
+          marginRight: hasSidePanel ? "min(420px, 100vw)" : 0,
+          transition: "margin-right 0.25s ease",
+          background: `
+            #c8a87a
+            repeating-linear-gradient(45deg, rgba(0,0,0,0.04) 0px, rgba(0,0,0,0.04) 1px, transparent 1px, transparent 8px),
+            repeating-linear-gradient(-45deg, rgba(0,0,0,0.04) 0px, rgba(0,0,0,0.04) 1px, transparent 1px, transparent 8px)
+          `,
         }}
       >
-        {/* Loading overlay */}
-        {loading && (
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: "rgba(200,168,122,0.8)",
-              zIndex: 500,
-            }}
-          >
-            <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: 40, marginBottom: 8 }}>🕵️</div>
-              <p style={{ color: "#78350f", fontWeight: 600 }}>Cargando la pared...</p>
-            </div>
-          </div>
-        )}
+        {/* Infinite canvas transform container */}
+        <div style={{ position: "absolute", inset: 0, transformOrigin: "0 0", transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})` }}>
 
-        {/* Error overlay */}
-        {error && (
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              zIndex: 500,
-            }}
-          >
-            <div
-              style={{
-                backgroundColor: "#450a0a",
-                border: "1px solid #7f1d1d",
-                borderRadius: 12,
-                padding: "24px 32px",
-                textAlign: "center",
-              }}
-            >
-              <div style={{ fontSize: 36, marginBottom: 8 }}>⚠️</div>
-              <p style={{ color: "#fca5a5", fontWeight: 600 }}>Error cargando datos</p>
-              <p style={{ color: "#9ca3af", fontSize: 12, marginTop: 4 }}>{error}</p>
-            </div>
-          </div>
-        )}
+          {/* Edge layer */}
+          <EdgeLayer
+            edges={allEdges}
+            positions={positions}
+            visibleNodeIds={visibleIds}
+            selectedNodeId={selectedNode?.id}
+          />
 
-        {/* Empty state */}
-        {!loading && !error && nodes.length === 0 && (
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <div
-              style={{
-                backgroundColor: "rgba(255,254,245,0.9)",
-                border: "2px dashed #d6c9a0",
-                borderRadius: 16,
-                padding: "40px 48px",
-                textAlign: "center",
-                maxWidth: 360,
-                boxShadow: "0 4px 16px rgba(0,0,0,0.15)",
-              }}
-            >
-              <div style={{ fontSize: 48, marginBottom: 12 }}>🕵️</div>
-              <p
-                style={{
-                  color: "#78350f",
-                  fontWeight: 700,
-                  fontSize: 16,
-                  margin: "0 0 8px",
-                }}
-              >
-                La pared está vacía
-              </p>
-              <p style={{ color: "#92400e", fontSize: 13, margin: 0 }}>
-                El sistema aún está recopilando datos
-              </p>
-            </div>
-          </div>
-        )}
+          {/* Node cards */}
+          {filteredNodes.map((node) => {
+            const pos = positions.get(node.id);
+            if (!pos) return null;
+            return (
+              <NodeCard
+                key={node.id}
+                node={node}
+                pos={pos}
+                isSelected={selectedNode?.id === node.id}
+                isHighlighted={
+                  !selectedNode ||
+                  selectedNode.id === node.id ||
+                  allEdges.some((e) => (e.source_node_id === selectedNode.id && e.target_node_id === node.id) || (e.target_node_id === selectedNode.id && e.source_node_id === node.id))
+                }
+                onMouseDown={handleNodeMouseDown}
+                onClick={handleNodeClick}
+              />
+            );
+          })}
+        </div>
 
-        {/* Transformed canvas */}
-        {!loading && nodes.length > 0 && (
-          <div
-            style={{
-              position: "absolute",
-              left: 0,
-              top: 0,
-              transformOrigin: "0 0",
-              transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`,
-            }}
-          >
-            {/* SVG edges layer */}
-            <EdgeLayer
-              edges={edges}
-              positions={positions}
-              visibleNodeIds={visibleNodeIds}
-            />
+        {/* Legend */}
+        <Legend />
 
-            {/* Node cards */}
-            {filteredNodes.map((node) => {
-              const pos = positions.get(node.id);
-              if (!pos) return null;
-              return (
-                <div key={node.id} data-node-card="true">
-                  <NodeCard
-                    node={node}
-                    position={pos}
-                    isSelected={selectedNode?.id === node.id}
-                    onMouseDown={handleNodeMouseDown}
-                    onClick={handleNodeClick}
-                  />
-                </div>
-              );
-            })}
+        {/* Network title overlay */}
+        {currentRed && (
+          <div style={{ position: "absolute", top: 12, left: "50%", transform: "translateX(-50%)", backgroundColor: "rgba(15,23,42,0.85)", border: "1px solid #334155", borderRadius: 20, padding: "6px 16px", backdropFilter: "blur(8px)", textAlign: "center", zIndex: 10, pointerEvents: "none" }}>
+            <span style={{ fontSize: 12, color: "#94a3b8", fontWeight: 600 }}>
+              🕸️ Red: <span style={{ color: "#f1f5f9" }}>{currentRed.anchorName}</span>
+              {currentRed.maxRisk > 0.7 && <span style={{ color: "#f87171", marginLeft: 8 }}>🚨 ALTO RIESGO</span>}
+            </span>
           </div>
         )}
       </div>
 
-      {/* Side panel */}
+      {/* ── Side panel ── */}
       {selectedNode && (
         <SidePanel
           node={selectedNode}
-          edges={edges}
-          allNodes={nodes}
+          edges={allEdges}
+          allNodes={allNodes}
+          anomalies={anomalies}
           onClose={() => setSelectedNode(null)}
         />
       )}
-
-      {/* Legend strip */}
-      <div
-        style={{
-          position: "absolute",
-          bottom: 12,
-          left: 12,
-          backgroundColor: "rgba(17,24,39,0.9)",
-          border: "1px solid #374151",
-          borderRadius: 8,
-          padding: "8px 12px",
-          display: "flex",
-          gap: 12,
-          alignItems: "center",
-          zIndex: 100,
-          backdropFilter: "blur(6px)",
-        }}
-      >
-        {Object.entries(RELATION_COLORS)
-          .filter(([k]) => k !== "default")
-          .map(([type, color]) => (
-            <span key={type} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <span
-                style={{
-                  display: "inline-block",
-                  width: 20,
-                  height: 2,
-                  backgroundColor: color,
-                  borderRadius: 1,
-                }}
-              />
-              <span style={{ fontSize: 10, color: "#9ca3af" }}>
-                {type.replace(/_/g, " ")}
-              </span>
-            </span>
-          ))}
-        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <span
-            style={{
-              display: "inline-block",
-              width: 20,
-              height: 2,
-              backgroundColor: RELATION_COLORS.default,
-              borderRadius: 1,
-            }}
-          />
-          <span style={{ fontSize: 10, color: "#9ca3af" }}>otros</span>
-        </span>
-      </div>
     </div>
   );
 }
-
-// ── Shared styles ─────────────────────────────────────────────────────────────
-
-const toolbarBtnStyle: React.CSSProperties = {
-  backgroundColor: "#1f2937",
-  border: "1px solid #4b5563",
-  borderRadius: 6,
-  color: "#e5e7eb",
-  cursor: "pointer",
-  fontSize: 16,
-  padding: "3px 10px",
-  lineHeight: 1.4,
-  transition: "background-color 0.15s",
-};
