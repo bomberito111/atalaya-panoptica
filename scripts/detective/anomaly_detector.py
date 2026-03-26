@@ -24,18 +24,17 @@ CONTEXTO DE ENTIDADES DETECTADAS:
 
 Evalúa específicamente:
 1. SOBREPRECIOS: ¿El monto parece excesivo para el bien/servicio descrito?
-2. CONFLICTO DE INTERÉS: ¿Hay funcionarios con relación a la empresa contratada?
+2. CONFLICTO DE INTERÉS: ¿Hay funcionarios con relación a la empresa contratada? (incluye triangulación, nepotismo)
 3. PUERTA GIRATORIA: ¿Hay ex-funcionarios contratados por empresas que regulaban?
-4. TRIANGULACIÓN: ¿Se usa una empresa intermediaria sin valor agregado aparente?
-5. NEPOTISMO: ¿Hay contratación de familiares o allegados?
-6. IRREGULARIDADES PROCEDIMENTALES: ¿El proceso licitatorio omitió pasos?
+4. BOT/DESINFORMACIÓN: ¿Hay señales de coordinación inauténtica o fake news?
+5. FAKE NEWS: ¿La narrativa contradice datos oficiales verificables?
 
 Responde en JSON:
 {{
   "tiene_anomalia": true/false,
   "anomalias": [
     {{
-      "tipo": "sobreprecio/conflicto_interes/puerta_giratoria/triangulacion/nepotismo/irregular_procedimiento",
+      "tipo": "sobreprecio|conflicto_interes|puerta_giratoria|bot_network|fake_news",
       "confianza": 0.0-1.0,
       "descripcion": "Explicación clara en español de la anomalía detectada",
       "evidencia_textual": "Cita exacta del documento que sustenta",
@@ -46,7 +45,34 @@ Responde en JSON:
   "riesgo_global": 0.0-1.0,
   "resumen": "Una oración que resume el hallazgo principal"
 }}
+IMPORTANTE: El campo "tipo" DEBE ser exactamente uno de: sobreprecio, conflicto_interes, puerta_giratoria, bot_network, fake_news
 """
+
+# Normalización de tipos que el modelo puede generar → tipos válidos en DB
+TIPO_MAP = {
+    "sobreprecio": "sobreprecio",
+    "conflicto_interes": "conflicto_interes",
+    "conflicto_de_interes": "conflicto_interes",
+    "puerta_giratoria": "puerta_giratoria",
+    "bot_network": "bot_network",
+    "fake_news": "fake_news",
+    # Tipos alternativos que el modelo puede generar → mapeo al más cercano
+    "triangulacion": "conflicto_interes",
+    "triangulación": "conflicto_interes",
+    "nepotismo": "conflicto_interes",
+    "irregular_procedimiento": "conflicto_interes",
+    "irregularidad_procedimiento": "conflicto_interes",
+    "irregularidad": "conflicto_interes",
+    "malversacion": "sobreprecio",
+    "malversación": "sobreprecio",
+    "fraude": "sobreprecio",
+    "colusión": "conflicto_interes",
+    "colusion": "conflicto_interes",
+    "financiamiento_ilegal": "conflicto_interes",
+    "desinformacion": "fake_news",
+    "desinformación": "fake_news",
+    "bot": "bot_network",
+}
 
 
 def detect_anomalies(
@@ -90,9 +116,13 @@ def detect_anomalies(
             logger.debug(f"Anomalía ignorada (confianza {confianza:.2f} < {threshold}): {anomalia.get('tipo')}")
             continue
 
+        # Normalizar tipo al enum válido de la DB
+        tipo_raw = anomalia.get("tipo", "conflicto_interes").strip().lower().replace(" ", "_")
+        tipo_norm = TIPO_MAP.get(tipo_raw, "conflicto_interes")
+
         # Obtener IDs de nodos involucrados (simplificado)
         record = {
-            "anomaly_type": anomalia.get("tipo", "conflicto_interes"),
+            "anomaly_type": tipo_norm,
             "confidence": confianza,
             "description": anomalia.get("descripcion", ""),
             "entities": [],  # Se podría resolver a UUIDs si se tiene el node_registry
