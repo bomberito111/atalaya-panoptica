@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useEffect, useState, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { supabase, type Node, type Edge, type Anomaly, type Promesa } from "@/lib/supabase";
 
@@ -107,7 +107,6 @@ function RiskGauge({ score }: { score: number }) {
   const pct = Math.round(score * 100);
   const barColor = riskColor(score);
   const textColor = riskTextColor(score);
-
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
@@ -115,10 +114,7 @@ function RiskGauge({ score }: { score: number }) {
         <span className={`text-lg font-bold ${textColor}`}>{pct}%</span>
       </div>
       <div className="h-3 bg-gray-800 rounded-full overflow-hidden">
-        <div
-          className={`h-full rounded-full transition-all ${barColor}`}
-          style={{ width: `${pct}%` }}
-        />
+        <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${pct}%` }} />
       </div>
       <div className="flex justify-between text-xs text-gray-600">
         <span>0%</span>
@@ -133,7 +129,6 @@ function EdgeCard({ edge, currentId }: { edge: EdgeWithNodes; currentId: string 
   const isSource = edge.source_node_id === currentId;
   const other = isSource ? edge.target : edge.source;
   const otherId = isSource ? edge.target_node_id : edge.source_node_id;
-
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 space-y-3">
       <div className="flex items-start justify-between gap-3">
@@ -149,10 +144,7 @@ function EdgeCard({ edge, currentId }: { edge: EdgeWithNodes; currentId: string 
             )}
           </div>
           {other ? (
-            <Link
-              href={`/entidad/${otherId}/`}
-              className="text-white font-semibold mt-1 hover:text-blue-400 transition-colors block"
-            >
+            <Link href={`/entidad/?id=${otherId}`} className="text-white font-semibold mt-1 hover:text-blue-400 transition-colors block">
               {other.canonical_name}
             </Link>
           ) : (
@@ -161,21 +153,14 @@ function EdgeCard({ edge, currentId }: { edge: EdgeWithNodes; currentId: string 
         </div>
         <span className="text-xs text-gray-600 flex-shrink-0">{timeAgo(edge.detected_at)}</span>
       </div>
-
       {edge.evidence_text && (
         <div className="bg-gray-800/50 rounded-lg p-3">
           <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Evidencia</p>
           <p className="text-gray-300 text-sm leading-relaxed">{edge.evidence_text}</p>
         </div>
       )}
-
       {edge.evidence_url && (
-        <a
-          href={edge.evidence_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 text-xs text-blue-400 hover:underline"
-        >
+        <a href={edge.evidence_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-blue-400 hover:underline">
           🔗 Ver fuente
         </a>
       )}
@@ -184,20 +169,13 @@ function EdgeCard({ edge, currentId }: { edge: EdgeWithNodes; currentId: string 
 }
 
 function AnomalyCard({ anomaly }: { anomaly: Anomaly }) {
-  const cfg = ANOMALY_TYPE_LABELS[anomaly.anomaly_type] ?? {
-    icon: "🔍",
-    color: "text-gray-400",
-    bg: "bg-gray-900/20 border-gray-800",
-  };
-
+  const cfg = ANOMALY_TYPE_LABELS[anomaly.anomaly_type] ?? { icon: "🔍", color: "text-gray-400", bg: "bg-gray-900/20 border-gray-800" };
   return (
     <div className={`border rounded-xl p-4 space-y-2 ${cfg.bg}`}>
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <span className="text-xl">{cfg.icon}</span>
-          <span className={`text-sm font-semibold ${cfg.color}`}>
-            {anomaly.anomaly_type.replace(/_/g, " ").toUpperCase()}
-          </span>
+          <span className={`text-sm font-semibold ${cfg.color}`}>{anomaly.anomaly_type.replace(/_/g, " ").toUpperCase()}</span>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <span className="text-xs text-yellow-400">{Math.round(anomaly.confidence * 100)}% confianza</span>
@@ -212,46 +190,35 @@ function AnomalyCard({ anomaly }: { anomaly: Anomaly }) {
 function PromesaCard({ promesa }: { promesa: Promesa }) {
   const verdict = promesa.verdict ?? "sin_datos";
   const vCfg = VERDICT_CONFIG[verdict] ?? VERDICT_CONFIG.sin_datos;
-
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 space-y-3">
       <div className="flex items-start justify-between gap-3">
-        <span className={`text-xs px-2 py-1 border rounded font-medium ${vCfg.color}`}>
-          {vCfg.label}
-        </span>
+        <span className={`text-xs px-2 py-1 border rounded font-medium ${vCfg.color}`}>{vCfg.label}</span>
         {promesa.promise_date && (
-          <span className="text-xs text-gray-600 flex-shrink-0">
-            {new Date(promesa.promise_date).toLocaleDateString("es-CL")}
-          </span>
+          <span className="text-xs text-gray-600 flex-shrink-0">{new Date(promesa.promise_date).toLocaleDateString("es-CL")}</span>
         )}
       </div>
-
       <div className="space-y-1">
         <p className="text-xs text-gray-500 uppercase tracking-wide">Promesa</p>
         <p className="text-white text-sm leading-relaxed">{promesa.promise_text}</p>
-        {promesa.promise_source && (
-          <p className="text-xs text-gray-600">Fuente: {promesa.promise_source}</p>
-        )}
+        {promesa.promise_source && <p className="text-xs text-gray-600">Fuente: {promesa.promise_source}</p>}
       </div>
-
       {promesa.reality_text && (
         <div className="space-y-1 border-t border-gray-800 pt-3">
           <p className="text-xs text-gray-500 uppercase tracking-wide">Realidad</p>
           <p className="text-gray-300 text-sm leading-relaxed">{promesa.reality_text}</p>
-          {promesa.reality_source && (
-            <p className="text-xs text-gray-600">Fuente: {promesa.reality_source}</p>
-          )}
+          {promesa.reality_source && <p className="text-xs text-gray-600">Fuente: {promesa.reality_source}</p>}
         </div>
       )}
     </div>
   );
 }
 
-// ─── Página principal ─────────────────────────────────────────────────────────
+// ─── Inner component (uses useSearchParams) ───────────────────────────────────
 
-export default function EntidadPage() {
-  const params = useParams<{ id: string }>();
-  const id = params?.id ?? "";
+function EntidadInner() {
+  const searchParams = useSearchParams();
+  const id = searchParams.get("id") ?? "";
 
   const [node, setNode] = useState<Node | null>(null);
   const [edges, setEdges] = useState<EdgeWithNodes[]>([]);
@@ -261,40 +228,27 @@ export default function EntidadPage() {
   const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
-    if (!id) return;
+    if (!id) { setLoading(false); setNotFound(true); return; }
 
     async function fetchAll() {
       setLoading(true);
       setNotFound(false);
-
       const [nodeRes, edgesRes, anomaliesRes, promisesRes] = await Promise.all([
         supabase.from("nodes").select("*").eq("id", id).single(),
-        supabase
-          .from("edges")
-          .select(
-            "*, source:source_node_id(canonical_name, node_type), target:target_node_id(canonical_name, node_type)"
-          )
-          .or(`source_node_id.eq.${id},target_node_id.eq.${id}`),
+        supabase.from("edges").select("*, source:source_node_id(canonical_name, node_type), target:target_node_id(canonical_name, node_type)").or(`source_node_id.eq.${id},target_node_id.eq.${id}`),
         supabase.from("anomalies").select("*").contains("entities", [id]),
         supabase.from("promises_vs_reality").select("*").eq("politician_id", id),
       ]);
-
-      if (nodeRes.error || !nodeRes.data) {
-        setNotFound(true);
-      } else {
-        setNode(nodeRes.data as Node);
-      }
-
+      if (nodeRes.error || !nodeRes.data) { setNotFound(true); }
+      else { setNode(nodeRes.data as Node); }
       setEdges((edgesRes.data as EdgeWithNodes[]) ?? []);
       setAnomalies((anomaliesRes.data as Anomaly[]) ?? []);
       setPromises((promisesRes.data as Promesa[]) ?? []);
       setLoading(false);
     }
-
     fetchAll();
   }, [id]);
 
-  // ─── Loading ───────────────────────────────────────────────────────────────
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
@@ -306,7 +260,6 @@ export default function EntidadPage() {
     );
   }
 
-  // ─── Not found ────────────────────────────────────────────────────────────
   if (notFound || !node) {
     return (
       <div className="text-center py-20 space-y-4">
@@ -337,54 +290,31 @@ export default function EntidadPage() {
     { key: "sector", label: "Sector" },
     { key: "rut", label: "RUT" },
     { key: "rubro", label: "Rubro" },
-    { key: "pais", label: "País" },
     { key: "region", label: "Región" },
   ] as const;
 
   return (
     <div className="space-y-8 pb-12 max-w-4xl mx-auto">
-
-      {/* ── 1. Hero header ──────────────────────────────────────────────── */}
       <section className="relative rounded-2xl overflow-hidden border border-gray-800 bg-gradient-to-br from-gray-900 via-gray-900 to-gray-950 p-6 sm:p-8">
         <div className="space-y-4">
-          {/* Type badge + risk label */}
           <div className="flex items-center gap-2 flex-wrap">
             <span className={`text-xs font-semibold px-2.5 py-1 border rounded-full ${NODE_TYPE_COLORS[node.node_type] ?? "bg-gray-800 border-gray-700 text-gray-400"}`}>
               {NODE_TYPE_LABELS[node.node_type] ?? node.node_type}
             </span>
-            <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
-              node.risk_score >= 0.7 ? "bg-red-500 text-white" :
-              node.risk_score >= 0.5 ? "bg-orange-500 text-white" :
-              node.risk_score >= 0.3 ? "bg-yellow-400 text-black" :
-              "bg-green-600 text-white"
-            }`}>
+            <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${node.risk_score >= 0.7 ? "bg-red-500 text-white" : node.risk_score >= 0.5 ? "bg-orange-500 text-white" : node.risk_score >= 0.3 ? "bg-yellow-400 text-black" : "bg-green-600 text-white"}`}>
               Riesgo {riskLabel(node.risk_score)}
             </span>
           </div>
-
-          {/* Name */}
-          <h1 className="text-3xl sm:text-4xl font-bold text-white leading-tight">
-            {node.canonical_name}
-          </h1>
-
-          {/* Risk bar */}
-          <div className="max-w-sm">
-            <RiskGauge score={node.risk_score} />
-          </div>
-
-          {/* Aliases */}
+          <h1 className="text-3xl sm:text-4xl font-bold text-white leading-tight">{node.canonical_name}</h1>
+          <div className="max-w-sm"><RiskGauge score={node.risk_score} /></div>
           {node.aliases && node.aliases.length > 0 && (
             <div className="flex flex-wrap gap-2">
               <span className="text-xs text-gray-600 self-center">También conocido como:</span>
               {node.aliases.map((alias) => (
-                <span key={alias} className="text-xs px-2 py-0.5 bg-gray-800 border border-gray-700 rounded text-gray-400">
-                  {alias}
-                </span>
+                <span key={alias} className="text-xs px-2 py-0.5 bg-gray-800 border border-gray-700 rounded text-gray-400">{alias}</span>
               ))}
             </div>
           )}
-
-          {/* Metadata fields */}
           {metaFields.some((f) => Boolean(meta?.[f.key])) && (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2">
               {metaFields.map(({ key, label }) =>
@@ -397,8 +327,6 @@ export default function EntidadPage() {
               )}
             </div>
           )}
-
-          {/* Timestamps */}
           <div className="flex gap-4 text-xs text-gray-600 pt-1">
             <span>Registrado: {new Date(node.created_at).toLocaleDateString("es-CL")}</span>
             <span>Actualizado: {timeAgo(node.updated_at)}</span>
@@ -406,7 +334,6 @@ export default function EntidadPage() {
         </div>
       </section>
 
-      {/* ── 2. Nota de estado (deceased) ────────────────────────────────── */}
       {isDeceased && (
         <div className="flex items-start gap-3 bg-orange-950/40 border border-orange-700 rounded-xl px-5 py-4">
           <span className="text-xl flex-shrink-0">⚠️</span>
@@ -416,16 +343,11 @@ export default function EntidadPage() {
         </div>
       )}
 
-      {/* ── 3. Análisis de riesgo ────────────────────────────────────────── */}
       <section className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-4">
-        <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">
-          🔎 Análisis de Riesgo
-        </h2>
+        <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">🔎 Análisis de Riesgo</h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-gray-800/50 rounded-lg p-4 text-center space-y-1">
-            <div className={`text-3xl font-bold ${riskTextColor(node.risk_score)}`}>
-              {Math.round(node.risk_score * 100)}%
-            </div>
+            <div className={`text-3xl font-bold ${riskTextColor(node.risk_score)}`}>{Math.round(node.risk_score * 100)}%</div>
             <div className="text-xs text-gray-500">Índice de riesgo calculado</div>
           </div>
           <div className="bg-gray-800/50 rounded-lg p-4 text-center space-y-1">
@@ -437,87 +359,54 @@ export default function EntidadPage() {
             <div className="text-xs text-gray-500">Anomalías vinculadas</div>
           </div>
         </div>
-        {anomalies.length > 0 && (
-          <div className="bg-gray-800/30 rounded-lg px-4 py-3 flex items-center gap-3">
-            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
-            <p className="text-xs text-gray-400">
-              Primera anomalía detectada: {new Date(anomalies[anomalies.length - 1].created_at).toLocaleDateString("es-CL")}
-            </p>
-          </div>
-        )}
       </section>
 
-      {/* ── 4. Relaciones detectadas ─────────────────────────────────────── */}
       <section className="space-y-4">
-        <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">
-          🕸️ Relaciones Detectadas ({edges.length})
-        </h2>
+        <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">🕸️ Relaciones Detectadas ({edges.length})</h2>
         {edges.length === 0 ? (
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-8 text-center text-gray-600">
-            No se han detectado relaciones para esta entidad.
-          </div>
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-8 text-center text-gray-600">No se han detectado relaciones para esta entidad.</div>
         ) : (
-          <div className="space-y-3">
-            {edges.map((edge) => (
-              <EdgeCard key={edge.id} edge={edge} currentId={id} />
-            ))}
-          </div>
+          <div className="space-y-3">{edges.map((edge) => <EdgeCard key={edge.id} edge={edge} currentId={id} />)}</div>
         )}
       </section>
 
-      {/* ── 5. Anomalías vinculadas ──────────────────────────────────────── */}
       <section className="space-y-4">
-        <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">
-          🚨 Anomalías Vinculadas ({anomalies.length})
-        </h2>
+        <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">🚨 Anomalías Vinculadas ({anomalies.length})</h2>
         {anomalies.length === 0 ? (
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-8 text-center text-gray-600">
-            No hay anomalías detectadas para esta entidad.
-          </div>
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-8 text-center text-gray-600">No hay anomalías detectadas para esta entidad.</div>
         ) : (
-          <div className="space-y-3">
-            {anomalies.map((a) => (
-              <AnomalyCard key={a.id} anomaly={a} />
-            ))}
-          </div>
+          <div className="space-y-3">{anomalies.map((a) => <AnomalyCard key={a.id} anomaly={a} />)}</div>
         )}
       </section>
 
-      {/* ── 6. Promesas vs Realidad ──────────────────────────────────────── */}
       {promises.length > 0 && (
         <section className="space-y-4">
-          <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">
-            ⚖️ Promesas vs Realidad ({promises.length})
-          </h2>
-          <div className="space-y-3">
-            {promises.map((p) => (
-              <PromesaCard key={p.id} promesa={p} />
-            ))}
-          </div>
+          <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">⚖️ Promesas vs Realidad ({promises.length})</h2>
+          <div className="space-y-3">{promises.map((p) => <PromesaCard key={p.id} promesa={p} />)}</div>
         </section>
       )}
 
-      {/* ── 7. Footer navigation ────────────────────────────────────────── */}
       <section className="bg-gray-900 border border-gray-800 rounded-xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
-        <p className="text-gray-500 text-sm text-center sm:text-left">
-          Datos actualizados automáticamente desde fuentes públicas del Estado chileno.
-        </p>
+        <p className="text-gray-500 text-sm text-center sm:text-left">Datos actualizados automáticamente desde fuentes públicas del Estado chileno.</p>
         <div className="flex gap-3 flex-wrap justify-center">
-          <Link
-            href="/red-corrupcion/"
-            className="px-4 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-200 rounded-lg text-sm font-medium transition-colors"
-          >
-            ← Red de Corrupción
-          </Link>
-          <Link
-            href="/grafo/"
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors"
-          >
-            🕸️ Ver en Grafo
-          </Link>
+          <Link href="/red-corrupcion/" className="px-4 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-200 rounded-lg text-sm font-medium transition-colors">← Red de Corrupción</Link>
+          <Link href="/grafo/" className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors">🕸️ Ver en Grafo</Link>
         </div>
       </section>
-
     </div>
+  );
+}
+
+// ─── Export with Suspense (required for useSearchParams + static export) ──────
+
+export default function EntidadPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    }>
+      <EntidadInner />
+    </Suspense>
   );
 }
