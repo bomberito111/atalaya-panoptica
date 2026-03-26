@@ -23,9 +23,11 @@ export const metadata: Metadata = {
 
 const NAV_LINKS = [
   { href: "/", label: "Inicio" },
-  { href: "/grafo/", label: "🕸️ Grafo de Poder" },
-  { href: "/muro-realidad/", label: "⚖️ Promesas vs Realidad" },
-  { href: "/radar/", label: "📡 Radar de Bots" },
+  { href: "/red-corrupcion/", label: "🕵️ Red" },
+  { href: "/grafo/", label: "🕸️ Grafo" },
+  { href: "/muro-realidad/", label: "⚖️ Promesas" },
+  { href: "/radar/", label: "📡 Radar" },
+  { href: "/publicaciones/", label: "📢 Posts IA" },
 ];
 
 export default function RootLayout({

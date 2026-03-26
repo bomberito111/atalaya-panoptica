@@ -15,32 +15,57 @@ logger = logging.getLogger(__name__)
 
 # Queries de búsqueda — Chile + corrupción + poder
 SEARCH_QUERIES = [
+    # Corrupción general
     "corrupción Chile gobierno 2024 2025",
     "licitación irregular Chile empresa contrato",
-    "imputado Chile fraude millones",
-    "caso judicial Chile ministro alcalde",
-    "Contraloría dictamen Chile irregular",
-    "Fiscalía formalización Chile político",
-    "sobreprecios Chile contrato público",
-    "conflicto interés Chile funcionario",
-    "financiamiento político Chile empresa",
-    "lobby Chile ministerio contrato",
-    "escándalo Chile municipio alcalde",
+    "imputado Chile fraude millones pesos",
+    "caso judicial Chile ministro alcalde senador",
+    "Contraloría dictamen Chile irregular informe",
+    "Fiscalía formalización Chile político funcionario",
+    "sobreprecios Chile contrato público licitación",
+    "conflicto interés Chile funcionario empresa",
+    "financiamiento político ilegal Chile empresa",
+    "lobby Chile ministerio contrato irregularidad",
+    "escándalo Chile municipio alcalde concejal",
     "lobby Chile congreso senado diputado",
-    "desvío fondos Chile municipalidad",
-    "colusión empresas Chile SII",
-    "caso corrupción Chile 2025",
+    "desvío fondos Chile municipalidad cuenta",
+    "colusión empresas Chile SII investigación",
+    "caso corrupción Chile 2025 nuevo",
+    # Casos específicos conocidos
+    "caso SQM financiamiento campaña Chile",
+    "Pandora Papers Chile Piñera Dominga",
+    "carabineros fondos reservados malversación",
+    "caso PENTA UDI financiamiento ilegal",
+    "Corpesca lobbying ley pesca Chile",
+    # Medios bajo sospecha
+    "El Mercurio Edwards dictadura Chile",
+    "concentración medios Chile propietario",
+    "pauta gubernamental publicidad medios Chile",
+    # Poder económico
+    "Luksic Chile empresa política lobby",
+    "Matte empresa política Chile influencia",
+    "Angelini grupo empresa política Chile",
+    # Municipios y regiones
+    "alcalde Chile formalizado imputado 2024 2025",
+    "municipio Chile sobreprecios contrato empresa",
+    "concejal Chile irregularidad denuncia",
+    # RRSS y desinformación
+    "fake news Chile desinformación gobierno",
+    "bots Chile Twitter campaña política",
+    "astroturfing Chile redes sociales",
 ]
 
 REDDIT_SUBREDDITS = [
     "r/chile",
     "r/ChileLibre",
     "r/economia",
+    "r/LaPoliticaChilena",
 ]
 
 REDDIT_KEYWORDS = [
     "corrupción", "licitación", "político", "gobierno", "ministerio",
     "alcalde", "municipio", "fraude", "sobreprecios", "lobby",
+    "escándalo", "imputado", "Contraloría", "Fiscalía", "empresa",
 ]
 
 
@@ -150,10 +175,10 @@ def run():
     logger.info("Búsqueda web: rastreando internet relacionada con Chile...")
     all_items = []
 
-    # 1. DuckDuckGo — queries de corrupción
-    for query in SEARCH_QUERIES[:8]:  # Limitar a 8 queries por run para no saturar
+    # 1. DuckDuckGo — TODAS las queries de corrupción (max datos posible)
+    for query in SEARCH_QUERIES:
         SCRAPER_LIMITER.consume()
-        results = search_duckduckgo_html(query, max_results=8)
+        results = search_duckduckgo_html(query, max_results=15)
         logger.info(f"  DDG '{query[:40]}...': {len(results)} resultados")
 
         for r in results:
@@ -172,9 +197,9 @@ def run():
 
     # 2. Reddit — subreddits chilenos
     for subreddit in REDDIT_SUBREDDITS:
-        for keyword in REDDIT_KEYWORDS[:4]:  # 4 keywords por subreddit
+        for keyword in REDDIT_KEYWORDS:  # Todas las keywords
             SCRAPER_LIMITER.consume()
-            posts = fetch_reddit_subreddit(subreddit, keyword, limit=10)
+            posts = fetch_reddit_subreddit(subreddit, keyword, limit=25)
             logger.info(f"  Reddit {subreddit}/{keyword}: {len(posts)} posts")
 
             for post in posts:

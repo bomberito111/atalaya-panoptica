@@ -20,4 +20,4 @@ python-dotenv==1.0.1      # Carga de .env en local
 tenacity==9.0.0           # Retry logic con backoff exponencial
 
 # --- Utilidades ---
-hashlib-additional==0.1   # SHA-256 para deduplicación (stdlib, solo como ref)
+# hashlib es parte de Python stdlib, no se instala por separado
