@@ -2,6 +2,7 @@
 
 import { useEffect, useCallback } from "react";
 import Link from "next/link";
+import { safeUrl } from "@/lib/supabase";
 import type { Anomaly } from "@/lib/supabase";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -271,10 +272,10 @@ export default function CasoModal({ anomaly: a, onClose }: CasoModalProps) {
             <div>
               <p className="text-xs text-[#8090A6] uppercase tracking-wider font-semibold mb-2">Fuentes consultadas</p>
               <ul className="space-y-1">
-                {fuentesAdicionales.slice(0, 6).map((url, i) => (
+                {fuentesAdicionales.slice(0, 6).map((url, i) => safeUrl(url) ? (
                   <li key={i}>
                     <a
-                      href={url}
+                      href={safeUrl(url)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-xs text-[#213E76] hover:underline break-all"
@@ -282,16 +283,16 @@ export default function CasoModal({ anomaly: a, onClose }: CasoModalProps) {
                       🔗 {url}
                     </a>
                   </li>
-                ))}
+                ) : null)}
               </ul>
             </div>
           )}
 
           {/* Acciones */}
           <div className="pt-3 border-t border-[#ECECEC] flex flex-wrap gap-2">
-            {sourceUrl && (
+            {safeUrl(sourceUrl) && (
               <a
-                href={sourceUrl}
+                href={safeUrl(sourceUrl)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2.5 bg-[#213E76] hover:bg-[#1a3260] text-white rounded text-sm font-medium transition-colors"

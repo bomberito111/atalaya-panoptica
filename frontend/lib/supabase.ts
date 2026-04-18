@@ -101,6 +101,20 @@ export function getEventDate(
   }
 }
 
+// ── Seguridad: validar URLs de la base de datos ─────────────────────────────
+
+/** Solo permite http: y https: — bloquea javascript:, data:, vbscript: y otros */
+export function safeUrl(url: string | undefined | null): string | undefined {
+  if (!url) return undefined;
+  try {
+    const u = new URL(url);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return undefined;
+    return url;
+  } catch {
+    return undefined;
+  }
+}
+
 // ── Funciones de consulta ───────────────────────────────────────────────────
 
 export async function getNodes(limit = 200): Promise<Node[]> {

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import { getAnomalies, getStats, type Anomaly } from "@/lib/supabase";
+import { getAnomalies, getStats, safeUrl, type Anomaly } from "@/lib/supabase";
 import CasoModal from "@/components/CasoModal";
 
 // ── Tipos de anomalía ──────────────────────────────────────────────────────
@@ -163,9 +163,9 @@ function CasoDestacado({ a, onClick }: { a: Anomaly; onClick: () => void }) {
 
         {/* Footer */}
         <div className="flex items-center justify-between pt-3 border-t border-[#ECECEC]">
-          {sourceUrl ? (
+          {safeUrl(sourceUrl) ? (
             <a
-              href={sourceUrl}
+              href={safeUrl(sourceUrl)}
               target="_blank"
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}

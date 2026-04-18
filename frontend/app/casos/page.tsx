@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import { getAnomalies, type Anomaly } from "@/lib/supabase";
+import { getAnomalies, safeUrl, type Anomaly } from "@/lib/supabase";
 import CasoModal from "@/components/CasoModal";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -84,9 +84,9 @@ function CasoRow({ a, idx }: { a: Anomaly; idx: number }) {
         </div>
         <div className="flex items-center gap-2">
           <span className="text-xs text-[#8090A6] font-mono">#{idx + 1}</span>
-          {sourceUrl && (
+          {safeUrl(sourceUrl) && (
             <a
-              href={sourceUrl}
+              href={safeUrl(sourceUrl)}
               target="_blank"
               rel="noopener noreferrer"
               className="text-xs text-[#213E76] hover:underline font-medium"
