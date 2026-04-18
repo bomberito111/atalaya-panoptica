@@ -12,9 +12,6 @@ from datetime import date, datetime
 # ── Credenciales ──────────────────────────────────────────────────────────────
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://hugenjgsoldrlqdyxblp.supabase.co")
 SERVICE_KEY  = os.environ.get("SUPABASE_SERVICE_KEY")
-if not SERVICE_KEY:
-    print("Error: falta la variable de entorno SUPABASE_SERVICE_KEY")
-    sys.exit(1)
 
 HEADERS = {
     "apikey": SERVICE_KEY,
