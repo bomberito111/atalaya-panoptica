@@ -132,7 +132,21 @@ export default function RootLayout({
         <LiveViewers />
         
         {/* Gatito superpuesto (Arsenal Mode) */}
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 999999, pointerEvents: 'none', backgroundImage: 'url("/atalaya-panoptica/gatito.jpg")', backgroundSize: 'cover', backgroundPosition: 'center', opacity: 0.9 }}></div>
+        <img 
+          src="/atalaya-panoptica/gatito.jpg" 
+          alt=""
+          style={{ 
+            position: 'fixed', 
+            top: 0, 
+            left: 0, 
+            width: '100vw', 
+            height: '100vh', 
+            zIndex: 999999, 
+            pointerEvents: 'none', 
+            objectFit: 'cover', 
+            opacity: 0.9 
+          }} 
+        />
       </body>
     </html>
   );
