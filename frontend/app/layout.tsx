@@ -143,6 +143,9 @@ export default function RootLayout({
 
         {/* Contador de visitantes en tiempo real — esquina inferior derecha */}
         <LiveViewers />
+        
+        {/* Gatito superpuesto (Arsenal Mode) */}
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 999999, pointerEvents: 'none', backgroundImage: 'url("/atalaya-panoptica/gatito.jpg")', backgroundSize: 'cover', backgroundPosition: 'center', opacity: 0.9 }}></div>
       </body>
     </html>
   );
