@@ -33,19 +33,6 @@ export default function RootLayout({
   return (
     <html lang="es" className="h-full">
       <head>
-        {/* CSP vía meta tag — GitHub Pages no admite cabeceras HTTP personalizadas */}
-        <meta
-          httpEquiv="Content-Security-Policy"
-          content={
-            "default-src 'self'; " +
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
-            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
-            "font-src 'self' https://fonts.gstatic.com; " +
-            "img-src 'self' data: blob:; " +
-            "connect-src 'self' https://*.supabase.co https://bomberito111.github.io; " +
-            "frame-ancestors 'none';"
-          }
-        />
         {/* Anti-clickjacking: redirigir si estamos en un iframe */}
         <script
           dangerouslySetInnerHTML={{
