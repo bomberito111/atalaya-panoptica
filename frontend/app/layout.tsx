@@ -131,20 +131,20 @@ export default function RootLayout({
         {/* Contador de visitantes en tiempo real — esquina inferior derecha */}
         <LiveViewers />
         
-        {/* Gatito superpuesto (Arsenal Mode) */}
+        {/* Gato del meme que gira (Maxwell) — Esquina superior derecha */}
         <img 
-          src="/atalaya-panoptica/gatito.jpg" 
-          alt=""
+          src="/atalaya-panoptica/gato_gira.gif" 
+          alt="Spinning Cat"
           style={{ 
             position: 'fixed', 
-            top: 0, 
-            left: 0, 
-            width: '100vw', 
-            height: '100vh', 
+            top: '20px', 
+            right: '20px', 
+            width: '150px', 
+            height: '150px', 
             zIndex: 999999, 
-            pointerEvents: 'none', 
-            objectFit: 'cover', 
-            opacity: 0.9 
+            pointerEvents: 'none',
+            borderRadius: '50%',
+            boxShadow: '0 0 20px rgba(0,0,0,0.5)'
           }} 
         />
       </body>
