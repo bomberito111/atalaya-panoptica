@@ -137,14 +137,14 @@ export default function RootLayout({
           alt="Spinning Cat"
           style={{ 
             position: 'fixed', 
-            top: '20px', 
-            right: '20px', 
-            width: '150px', 
-            height: '150px', 
+            top: '0px', 
+            right: '0px', 
+            width: '250px', 
+            height: 'auto', 
             zIndex: 999999, 
             pointerEvents: 'none',
-            borderRadius: '50%',
-            boxShadow: '0 0 20px rgba(0,0,0,0.5)'
+            boxShadow: '0 0 30px rgba(0,0,0,0.8)',
+            border: '5px solid #E00911'
           }} 
         />
       </body>
